@@ -172,18 +172,3 @@ ngrok http 8000
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
-
-## License
-
-This project is licensed under the MIT License - see the LICENSE file for details.
-
-## Acknowledgments
-
-- Picovoice for wake word detection
-- OpenAI/DeepSeek for language models
-- Hugging Face for vision models
-- OpenRouteService for navigation
-
-## Support
-
-For issues and questions, please open an issue on GitHub.
