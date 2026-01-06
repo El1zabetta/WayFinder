@@ -50,3 +50,7 @@ temp/
 tmp/
 *.tmp
 .cache/
+
+# Markdown files (except main README)
+*.md
+!README.md
