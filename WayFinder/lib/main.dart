@@ -9,21 +9,33 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:record/record.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:animate_do/animate_do.dart';
 
 import 'theme/app_theme.dart';
-import 'services/vision_api.dart';
+import 'services/advanced_ai_service.dart';
 import 'services/porcupine_service.dart';
 import 'services/navigation_service.dart';
 import 'services/chat_history_service.dart';
+import 'services/haptic_service.dart';
+import 'services/enhanced_speech_service.dart';
 import 'screens/chat_screen.dart';
 import 'screens/vision_mode.dart';
+import 'screens/splash_screen.dart';
+import 'screens/onboarding_screen.dart';
+import 'screens/premium_settings_screen.dart';
 import 'widgets/glass_container.dart';
+import 'widgets/premium_widgets.dart';
+import 'widgets/voice_animations.dart';
+import 'widgets/ai_animations.dart'; // Added for typing indicators
 
+import 'package:firebase_core/firebase_core.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'services/auth_service.dart';
 import 'screens/login_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp();
   runApp(const VisionApp());
 }
 
@@ -61,8 +73,10 @@ class _VisionAppState extends State<VisionApp> {
         Locale('ru'),
         Locale('ky'),
       ],
-      initialRoute: '/',
+      initialRoute: '/splash',
       routes: {
+        '/splash': (context) => const SplashScreen(),
+        '/onboarding': (context) => const OnboardingScreen(),
         '/': (context) => const AuthWrapper(),
         '/login': (context) => const LoginScreen(),
         '/home': (context) => MainNavScreen(onLocaleChange: setLocale),
@@ -107,8 +121,9 @@ class MainNavScreen extends StatefulWidget {
 
 class _MainNavScreenState extends State<MainNavScreen> with WidgetsBindingObserver {
   // Services
-  final _api = VisionApiService();
+  final _api = AdvancedVisionApiService();
   late PorcupineWakeWordService _porcupineService;
+  late EnhancedSpeechService _speechService;
   final _navigationService = NavigationService();
   final _chatHistory = ChatHistoryService();
   CameraController? _cameraController;
@@ -116,6 +131,17 @@ class _MainNavScreenState extends State<MainNavScreen> with WidgetsBindingObserv
   final _audioPlayer = AudioPlayer();
   bool _wakeWordEnabled = true;
   bool _isNavigating = false;
+  String? _destination;
+  List<NavigationStep> _routeSteps = [];
+  int _currentStepIndex = 0;
+  DateTime? _lastSafetyScan;
+  bool _isSafetyScanning = false;
+  
+   // Advanced Features
+  final _spatialAudio = SpatialAudioService();
+  double _currentHeading = 0;
+  StreamSubscription? _compassSubscription;
+
 
   // State
   int _currentIndex = 0;
@@ -123,6 +149,10 @@ class _MainNavScreenState extends State<MainNavScreen> with WidgetsBindingObserv
   bool _isProcessing = false;
   List<ChatMessage> _messages = [];
   String _visionStatus = "";
+  String _partialSpeechText = "";
+  
+  // HUD Animation Controller
+  late AnimationController _hudController;
   
   static const int TAB_CHAT = 0;
   static const int TAB_VISION = 1;
@@ -138,37 +168,89 @@ class _MainNavScreenState extends State<MainNavScreen> with WidgetsBindingObserv
     
     _porcupineService = PorcupineWakeWordService(
       onWakeWordDetected: _handlePorcupineWake,
-      onError: (err) => print("Porcupine Error: $err")
+      onError: (err) {
+        print("❌ [MAIN] Porcupine Error: $err");
+        // Show error to user if mounted
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text("Wake Word Error: $err"),
+              backgroundColor: Colors.redAccent,
+              duration: const Duration(seconds: 5),
+            ),
+          );
+        }
+      }
     );
+    
+    // Initialize enhanced speech service
+    _speechService = EnhancedSpeechService()
+      ..onCommandDetected = (text) {
+        setState(() => _partialSpeechText = "");
+        _handleSpeechCommand(text);
+      }
+      ..onError = (err) {
+        print("❌ [MAIN] Speech Error: $err");
+        setState(() {
+          _isRecording = false;
+          _partialSpeechText = "";
+        });
+        // RESTART wake word on error to keep app alive
+        if (_wakeWordEnabled && !_isProcessing) {
+          _porcupineService.startListening();
+        }
+      }
+      ..onPartialResult = (text) {
+        setState(() => _partialSpeechText = text);
+        print("📝 [MAIN] Partial: $text");
+      };
+    
     _initWakeWord();
+    _initCompass();
   }
+
+  void _initCompass() {
+    _compassSubscription = FlutterCompass.events?.listen((event) {
+      setState(() {
+        _currentHeading = event.heading ?? 0;
+      });
+    });
+  }
+
+
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    _cameraController?.dispose();
+    _disposeCamera();
     _audioRecorder.dispose();
     _audioPlayer.dispose();
     _porcupineService.dispose();
+    _speechService.dispose();
+    _compassSubscription?.cancel();
     super.dispose();
+  }
+
+  void _disposeCamera() {
+    if (_cameraController != null) {
+      print("📸 [MAIN] Disposing camera...");
+      _cameraController?.dispose();
+      _cameraController = null; // Important: set to null after dispose
+      if (mounted) setState(() {});
+    }
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (_cameraController == null || !_cameraController!.value.isInitialized) {
-      return;
-    }
-
-    if (state == AppLifecycleState.inactive) {
-      _cameraController?.dispose();
+    if (state == AppLifecycleState.inactive || state == AppLifecycleState.paused) {
+      _disposeCamera();
+      _porcupineService.stopListening();
     } else if (state == AppLifecycleState.resumed) {
       _initCamera();
       // Restart wake word on resume if enabled
       if (_wakeWordEnabled && !_isRecording && !_isProcessing) {
         _porcupineService.startListening();
       }
-    } else if (state == AppLifecycleState.paused) {
-      _porcupineService.stopListening();
     }
   }
 
@@ -178,7 +260,7 @@ class _MainNavScreenState extends State<MainNavScreen> with WidgetsBindingObserv
       try {
         _cameraController = CameraController(
           cameras.first, 
-          ResolutionPreset.medium, 
+          ResolutionPreset.high, // Улучшаем качество камеры
           enableAudio: false,
           imageFormatGroup: ImageFormatGroup.jpeg,
         );
@@ -193,11 +275,69 @@ class _MainNavScreenState extends State<MainNavScreen> with WidgetsBindingObserv
   Future<void> _loadChatHistory() async {
     final history = await _chatHistory.loadHistory();
     if (history.isEmpty) {
-      _addInitialMessage();
+      _checkFirstRun();
     } else {
       setState(() {
         _messages = history;
       });
+    }
+  }
+
+  Future<void> _checkFirstRun() async {
+    final prefs = await SharedPreferences.getInstance();
+    final bool isFirstRun = prefs.getBool('is_first_run') ?? true;
+    
+    if (isFirstRun) {
+      await _startVoiceOnboarding();
+      await prefs.setBool('is_first_run', false);
+    } else {
+      _addInitialMessage();
+    }
+  }
+
+  Future<void> _startVoiceOnboarding() async {
+    const welcomeText = """
+Привет! Я WayFinder — твой новый виртуальный поводырь и помощник. 
+Я создан, чтобы ты мог чувствовать себя увереннее:
+1. Я могу строить маршруты и вести тебя за руку, подсказывая повороты.
+2. Мои 'глаза' через камеру постоянно следят за путем и предупредят тебя об опасностях: люках, препятствиях или красном свете светофора.
+3. Ты можешь просто спросить 'что я вижу?' или 'что передо мной?', и я опишу обстановку.
+
+Давай быстро настроимся. Какой язык тебе удобнее - русский или английский?
+""";
+    
+    final aiMsg = ChatMessage(
+        text: welcomeText, 
+        isUser: false, 
+        timestamp: DateTime.now()
+    );
+    setState(() => _messages.add(aiMsg));
+    
+    // Play greeting
+    await _speak(welcomeText);
+    
+    // Start listening for language choice
+    await Future.delayed(const Duration(seconds: 1));
+    if (_wakeWordEnabled) _porcupineService.stopListening();
+    
+    await _speechService.initialize();
+    _speechService.listenForCommand(timeout: const Duration(seconds: 5));
+  }
+
+  Future<void> _handleVoiceRegistration() async {
+    _speak("Хорошо, давай зарегистрируемся через твой Google аккаунт. Сейчас откроется окно выбора аккаунта. Пожалуйста, подтверди свой выбор.");
+    
+    try {
+      final result = await AuthService().signInWithGoogle();
+      if (result['success']) {
+        _speak("Отлично! Регистрация прошла успешно. Теперь ты в системе. Все твои настройки и история будут сохраняться.");
+        // Reload history or just continue
+        setState(() {}); 
+      } else {
+        _speak("К сожалению, произошла ошибка при входе через Google. Попробуй еще раз или попроси помощи у зрячего человека.");
+      }
+    } catch (e) {
+      _speak("Произошла техническая ошибка. Пожалуйста, попробуй позже.");
     }
   }
 
@@ -213,14 +353,6 @@ class _MainNavScreenState extends State<MainNavScreen> with WidgetsBindingObserv
      _chatHistory.saveHistory(_messages);
   }
 
-  Future<void> _clearChatHistory() async {
-    await _chatHistory.clearHistory();
-    setState(() {
-      _messages.clear();
-    });
-    _addInitialMessage();
-  }
-
   Future<void> _initHardware() async {
     await [Permission.camera, Permission.microphone, Permission.location].request();
     // Re-init camera logic...
@@ -228,62 +360,179 @@ class _MainNavScreenState extends State<MainNavScreen> with WidgetsBindingObserv
   }
 
   Future<void> _initWakeWord() async {
+    print("🔧 [MAIN] Initializing wake word service...");
+    print("🔧 [MAIN] Wake word enabled: $_wakeWordEnabled");
+    
     await _porcupineService.initialize();
+    
+    print("🔧 [MAIN] Porcupine initialized: ${_porcupineService.isInitialized}");
+    
     if (_wakeWordEnabled) {
+      print("🔧 [MAIN] Starting wake word listener...");
       await _porcupineService.startListening();
+      print("🔧 [MAIN] Wake word listener started: ${_porcupineService.isListening}");
+    } else {
+      print("⚠️ [MAIN] Wake word is disabled, not starting listener");
     }
   }
 
   void _handlePorcupineWake() async {
-    print("⚡ WAYFINDER DETECTED! Starting recording...");
+    print("⚡⚡⚡ [MAIN] WAKE WORD 'WAYFINDER' DETECTED! ⚡⚡⚡");
+    print("⚡ [MAIN] Current state - isRecording: $_isRecording, isProcessing: $_isProcessing");
+    
     if (!_isRecording && !_isProcessing) {
+      print("✅ [MAIN] State is valid, proceeding with wake word handling...");
+      
       // 1. Stop Wake Word Listener
+      print("🛑 [MAIN] Stopping wake word listener...");
       await _porcupineService.stopListening();
+      print("✅ [MAIN] Wake word listener stopped");
       
       // 2. HAPTIC FEEDBACK - Premium vibration pattern
-      try {
-        // Triple vibration pattern for wake word confirmation
-        await Future.delayed(Duration.zero);
-        // Note: Add vibration package if needed: vibration: ^1.8.4
-        // await Vibration.vibrate(duration: 50);
-        // await Future.delayed(const Duration(milliseconds: 100));
-        // await Vibration.vibrate(duration: 50);
-      } catch (e) {
-        print("Haptic not available: $e");
-      }
+      print("📳 [MAIN] Triggering haptic feedback...");
+      await HapticService.wakeWordDetected();
+      print("✅ [MAIN] Haptic feedback completed");
 
-      // 3. Visual Feedback - Show wake word detected animation
+      // 3. Visual Feedback
+      print("🎨 [MAIN] Setting processing state for visual feedback...");
       setState(() { _isProcessing = true; });
 
-      // 4. Start Recording immediately
-      if (await _audioRecorder.hasPermission()) {
-        final dir = await getTemporaryDirectory();
-        final path = '${dir.path}/query.m4a';
-        await _audioPlayer.stop();
+      // 4. Start SPEECH RECOGNITION to get command
+      print("🎤 [MAIN] Starting speech recognition for command...");
+      
+      try {
+        // Initialize if needed
+        if (!_speechService.isInitialized) {
+          print("🔧 [MAIN] Initializing speech service...");
+          await _speechService.initialize();
+        }
 
-        await _audioRecorder.start(const RecordConfig(encoder: AudioEncoder.aacLc), path: path);
-        
+        // Wait a moment for microphone to be released by Porcupine
+        await Future.delayed(const Duration(milliseconds: 300));
+
+        print("👂 [MAIN] Listening for user command...");
         setState(() { 
           _isRecording = true; 
-          _isProcessing = false;
+          _isProcessing = false; 
+          _partialSpeechText = "Слушаю...";
         });
         
-        // Auto-stop recording after 5 seconds
-        Future.delayed(const Duration(seconds: 5), () {
-           if (_isRecording) {
-             _handleVoiceButton();
-           }
-        });
+        await _speechService.listenForCommand(
+          timeout: const Duration(seconds: 10),
+          extractCommand: false, // Use full text for better accuracy
+        );
+        
+      } catch (e) {
+        print("❌ [MAIN] Speech recognition error: $e");
+        setState(() { _isRecording = false; _isProcessing = false; });
+        
+        // Restart wake word
+        if (_wakeWordEnabled) {
+          _porcupineService.startListening();
+        }
       }
+    } else {
+      print("⚠️ [MAIN] Wake word ignored - state: Rec=$_isRecording, Proc=$_isProcessing");
     }
   }
 
+  // Handle detected speech command
+  void _handleSpeechCommand(String command) async {
+    print("🎯 [MAIN] Speech command received: '$command'");
+    
+    setState(() { _isRecording = false; _isProcessing = true; });
+    
+    // Stop speech recognition
+    await _speechService.stop();
+    
+    // Process the command
+    await _processTextCommand(command);
+    
+    // Restart wake word listener
+    if (_wakeWordEnabled && !_isRecording) {
+      print("🔄 [MAIN] Restarting wake word listener...");
+      await Future.delayed(const Duration(milliseconds: 500));
+      _porcupineService.startListening();
+    }
+  }
+
+  // Process text command
+  Future<void> _processTextCommand(String text) async {
+    print("💬 [MAIN] Processing text command: '$text'");
+    
+    final lowerText = text.toLowerCase();
+    
+    // 1. Check for Mode Switch Commands
+    if (_processModeCommands(lowerText)) return;
+
+    // 2. Check for Language selection (during onboarding)
+    if (lowerText.contains('русский') || lowerText.contains('russian')) {
+       widget.onLocaleChange(const Locale('ru'));
+       _speak("Выбран русский язык. Теперь мы можем зарегистрироваться. Хочешь зайти через Google аккаунт? Просто скажи 'да' или 'зарегистрируй меня'.");
+       return;
+    } else if (lowerText.contains('английский') || lowerText.contains('english')) {
+       widget.onLocaleChange(const Locale('en'));
+       _speak("English language selected. Now we can register. Would you like to sign in with Google? Just say 'yes' or 'register me'.");
+       return;
+    }
+
+    // 3. Check for Registration/Login Commands
+    if (lowerText.contains('регистрация') || 
+        lowerText.contains('зарегистрируй') || 
+        lowerText.contains('войти') || 
+        lowerText.contains('google') ||
+        lowerText.contains('register') ||
+        lowerText.contains('sign in')) {
+      await _handleVoiceRegistration();
+      return;
+    }
+
+    // 4. Check for Object Search
+    if (lowerText.contains('найди') || lowerText.contains('где') || lowerText.contains('find')) {
+       final query = lowerText.replaceAll('найди', '').replaceAll('где', '').replaceAll('find', '').trim();
+       _speak("Ищу $query. Пожалуйста, медленно поводите камерой вокруг.");
+       await _processRequest(text: query, mode: 'search');
+       return;
+    }
+
+    final userMsg = ChatMessage(text: text, isUser: true, timestamp: DateTime.now());
+    setState(() {
+      _messages.add(userMsg);
+    });
+    await _chatHistory.saveHistory(_messages);
+    
+    // Check if navigation request
+    if (_isNavigationRequest(text)) {
+      await _handleNavigationRequest(text: text);
+    } else {
+      await _processRequest(text: text, mode: 'chat');
+    }
+  }
+
+  bool _processModeCommands(String text) {
+    if (text.contains('режим навигатора') || text.contains('navigator mode')) {
+      setState(() => _currentIndex = TAB_VISION);
+      _speak("Переключаюсь в режим навигатора. Камера активна.");
+      return true;
+    } else if (text.contains('стандартный режим') || text.contains('чат') || text.contains('standard mode')) {
+      setState(() => _currentIndex = TAB_CHAT);
+      _speak("Переключено в стандартный режим чата.");
+      return true;
+    }
+    return false;
+  }
+
   void _toggleWakeWord() {
+    print("🔄 [MAIN] Toggling wake word. Current state: $_wakeWordEnabled");
     setState(() {
       _wakeWordEnabled = !_wakeWordEnabled;
+      print("🔄 [MAIN] Wake word now: ${_wakeWordEnabled ? 'ENABLED' : 'DISABLED'}");
+      
       if (_wakeWordEnabled) {
+        print("▶️ [MAIN] Starting wake word listener...");
         _porcupineService.startListening();
       } else {
+        print("⏸️ [MAIN] Stopping wake word listener...");
         _porcupineService.stopListening();
       }
     });
@@ -295,24 +544,39 @@ class _MainNavScreenState extends State<MainNavScreen> with WidgetsBindingObserv
     if (_isProcessing) return;
 
     if (_isRecording) {
-      // STOP & SEND
-      final path = await _audioRecorder.stop();
-      setState(() { _isRecording = false; _isProcessing = true; });
-      if (path != null) {
-         // Analyze Request
-         await _processRequest(audioPath: path, mode: 'chat');
-      } else {
-         setState(() { _isProcessing = false; });
-      }
+      // STOP manually
+      await _speechService.stop();
+      setState(() { 
+        _isRecording = false; 
+        _isProcessing = true; 
+      });
     } else {
-      // START RECORDING MANUALLY
-      if (await _audioRecorder.hasPermission()) {
+      // START SPEECH RECOGNITION MANUALLY
+      try {
         await _porcupineService.stopListening(); // Pause wake word
-        final dir = await getTemporaryDirectory();
-        final path = '${dir.path}/query.m4a';
         await _audioPlayer.stop();
-        await _audioRecorder.start(const RecordConfig(encoder: AudioEncoder.aacLc), path: path);
-        setState(() { _isRecording = true; });
+
+        if (!_speechService.isInitialized) {
+          await _speechService.initialize();
+        }
+
+        HapticService.recordingStarted();
+        setState(() { 
+          _isRecording = true; 
+          _isProcessing = false; 
+        });
+
+        await _speechService.listenForCommand(
+          timeout: const Duration(seconds: 10),
+          extractCommand: false, // For manual button, take everything
+        );
+      } catch (e) {
+        print("Error starting manual speech recording: $e");
+        setState(() { 
+          _isRecording = false; 
+          _isProcessing = false; 
+        });
+        if (_wakeWordEnabled) _porcupineService.startListening();
       }
     }
   }
@@ -341,15 +605,23 @@ class _MainNavScreenState extends State<MainNavScreen> with WidgetsBindingObserv
   Future<void> _handleNavigationRequest({String? audioPath, String text = ''}) async {
     try {
       final position = await _navigationService.getCurrentLocation();
-      final result = await _api.requestNavigation(
-        audioPath,
-        text,
+      
+      // If no text, we can't build a route, so just use visual context
+      if (text.isEmpty || text == 'маршрут' || text == 'навигация') {
+        await _processRequest(text: text, mode: 'chat');
+        return;
+      }
+
+      // 1. Get AI intention and destination from text
+      final aiResponse = await _api.requestNavigation(
+        audioPath: audioPath,
+        text: text,
         currentLat: position?.latitude,
         currentLon: position?.longitude,
       );
       
-      final message = result['message'];
-      final audioB64 = result['audio'];
+      final message = aiResponse.message;
+      final audioB64 = aiResponse.audio;
       
       final aiMsg = ChatMessage(text: message, isUser: false, timestamp: DateTime.now());
       setState(() {
@@ -359,8 +631,11 @@ class _MainNavScreenState extends State<MainNavScreen> with WidgetsBindingObserv
       await _chatHistory.saveHistory(_messages);
 
       if (audioB64 != null) {
-         _playAudioResponse(audioB64);
+         await _playAudioResponse(audioB64);
       }
+
+      // 2. Extract destination name and start route building
+      _extractAndBuildRoute(text);
       
     } catch (e) {
       final errorMsg = ChatMessage(text: "Ошибка: $e", isUser: false, timestamp: DateTime.now());
@@ -372,32 +647,160 @@ class _MainNavScreenState extends State<MainNavScreen> with WidgetsBindingObserv
     }
   }
 
-  Future<void> _buildAndStartNavigation(String destination) async {
-      // ... existing nav logic ...
+  Future<void> _extractAndBuildRoute(String text) async {
+    // Basic extraction - in production, the AI would give us coordinates or a clean address
+    final cleanDest = text
+      .replaceAll('построй маршрут до', '')
+      .replaceAll('как пройти до', '')
+      .replaceAll('как дойти до', '')
+      .trim();
+    
+    if (cleanDest.isEmpty) return;
+
+    try {
+      _speak("Строю маршрут до $cleanDest. Пожалуйста, подождите.");
+      
+      final steps = await _navigationService.buildRoute(cleanDest);
+      setState(() {
+        _isNavigating = true;
+        _destination = cleanDest;
+        _routeSteps = steps;
+        _currentStepIndex = 0;
+      });
+
+      if (steps.isNotEmpty) {
+        final firstInstruct = _navigationService.getCurrentInstruction();
+        _speak("Маршрут построен. $firstInstruct");
+        _startNavigationLoop();
+      }
+    } catch (e) {
+      _speak("Не удалось построить маршрут. Ошибка: $e");
+    }
   }
 
-  void _startTurnByTurnGuidance() {
-     // ... existing nav logic ...
+  void _startNavigationLoop() {
+    // Run navigation loop every 5 seconds
+    Future.doWhile(() async {
+      if (!_isNavigating || !mounted) return false;
+      
+      // 1. Check navigation progress
+      // _checkNavigationProgress();
+      
+      // 2. Perform safety scan if enough time passed (every 3 seconds)
+      final now = DateTime.now();
+      if (_lastSafetyScan == null || now.difference(_lastSafetyScan!).inSeconds >= 3) {
+        await _performSafetyScan();
+        _lastSafetyScan = DateTime.now();
+      }
+
+      await Future.delayed(const Duration(seconds: 3));
+      return _isNavigating;
+    });
   }
 
-  Future<List<int>?> _generateTTS(String text) async {
-    return null;
+  Future<void> _performSafetyScan() async {
+    if (_isSafetyScanning || _cameraController == null || !_cameraController!.value.isInitialized) return;
+    
+    setState(() => _isSafetyScanning = true);
+    
+    try {
+      final image = await _cameraController!.takePicture();
+      final response = await _api.smartAnalyze(
+        image: image,
+        mode: 'guide',
+        text: 'Identify obstacles and give short safety instruction',
+        useCache: false,
+      );
+
+      final msg = response.message;
+      if (msg.isNotEmpty && msg != '[CLEAR]') {
+        // PARSE TAGS FOR HAPTICS & SOUND
+        if (msg.contains('[DANGER]')) {
+          HapticService.emergencyWarning();
+        } else if (msg.contains('[STOP]')) {
+          HapticService.heavyImpact();
+        } else if (msg.contains('[GO]')) {
+          HapticService.success();
+        } else {
+          HapticService.obstacleAlert();
+        }
+
+        final cleanMsg = msg
+            .replaceAll('[DANGER]', '')
+            .replaceAll('[STOP]', '')
+            .replaceAll('[GO]', '')
+            .trim();
+        
+        _speak(cleanMsg, isPriority: true);
+      }
+    } catch (e) {
+      print("⚠️ [SAFETY SCAN] Speed scan failed: $e");
+    } finally {
+      if (mounted) setState(() => _isSafetyScanning = false);
+    }
+  }
+
+  Future<void> _speak(String text, {bool isPriority = false}) async {
+    if (isPriority) {
+      await _audioPlayer.stop();
+      HapticService.mediumImpact();
+    }
+    
+    // Calculate Balance for Spatial Audio if navigating
+    double balance = 0;
+    if (_isNavigating) {
+      final targetBearing = _navigationService.getBearingToNextStep(
+        _navigationService.currentPosition?.latitude ?? 0, 
+        _navigationService.currentPosition?.longitude ?? 0
+      );
+      balance = _spatialAudio.calculateBalance(_currentHeading, targetBearing);
+    }
+
+    final aiResponse = await _api.smartAnalyze(text: text, mode: 'chat');
+    if (aiResponse.audio != null) {
+      final bytes = base64Decode(aiResponse.audio!);
+      final dir = await getTemporaryDirectory();
+      final file = File('${dir.path}/tts_${DateTime.now().millisecondsSinceEpoch}.mp3');
+      await file.writeAsBytes(bytes);
+      
+      await _audioPlayer.setBalance(balance); // APPLY 3D PANNING
+      await _audioPlayer.play(DeviceFileSource(file.path));
+    }
+  }
+
+  void _stopNavigation() {
+    setState(() {
+      _isNavigating = false;
+      _destination = null;
+      _routeSteps = [];
+      _currentStepIndex = 0;
+    });
+    HapticService.mediumImpact();
+    _speak("Навигация остановлена.");
   }
 
   Future<void> _processRequest({String? audioPath, String text = '', required String mode}) async {
     try {
-      XFile? image;
-      if (_cameraController != null && _cameraController!.value.isInitialized) {
-        try {
-          image = await _cameraController!.takePicture();
-        } catch (_) {} 
+      XFile? imageFile;
+    if (_cameraController != null && _cameraController!.value.isInitialized) {
+      try {
+        // Делаем снимок для анализа, если мы в режиме Vision
+        // Оптимизируем: делаем фото в низком разрешении для скорости ИИ
+        imageFile = await _cameraController!.takePicture();
+        print("📸 [MAIN] Picture taken for analysis: ${imageFile.path}");
+      } catch (e) {
+        print("❌ [MAIN] Error taking picture: $e");
       }
-
-      final result = await _api.smartAnalyze(image, audioPath, mode: mode, text: text);
+    }
+      final aiResponse = await _api.smartAnalyze(
+        image: imageFile, 
+        audioPath: audioPath, 
+        mode: mode, 
+        text: text
+      );
       
-      final msg = result['message'];
-      final audioB64 = result['audio'];
-      final debugVision = result['debug_vision'];
+      final msg = aiResponse.message;
+      final audioB64 = aiResponse.audio;
 
       if (!mounted) return;
 
@@ -484,10 +887,172 @@ class _MainNavScreenState extends State<MainNavScreen> with WidgetsBindingObserv
                 onScanTap: () => {}, // Continuous scan usually
               ),
 
-              // TAB 2: SETTINGS (Inline simplified)
-              _buildSettingsScreen(l10n),
+              // TAB 2: SETTINGS
+              PremiumSettingsScreen(
+                onLocaleChange: widget.onLocaleChange,
+                wakeWordEnabled: _wakeWordEnabled,
+                onToggleWakeWord: _toggleWakeWord,
+                onClearHistory: _clearChatHistory,
+                messageCount: _messages.length,
+              ),
             ],
           ),
+          
+          // PREMIUM VIRTUAL GUIDE HUD
+          if (_isNavigating)
+            Positioned(
+              top: MediaQuery.of(context).padding.top + 20,
+              left: 20,
+              right: 20,
+              child: FadeInDown(
+                duration: const Duration(milliseconds: 600),
+                child: GlassContainer(
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
+                  child: Row(
+                    children: [
+                      _buildRadarIcon(),
+                      const SizedBox(width: 15),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Row(
+                              children: [
+                                Container(
+                                  width: 8,
+                                  height: 8,
+                                  decoration: const BoxDecoration(
+                                    color: Colors.greenAccent,
+                                    shape: BoxShape.circle,
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  "АКТИВНЫЙ ПОВОДЫРЬ",
+                                  style: TextStyle(
+                                    color: Colors.blueAccent.shade100,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
+                                    letterSpacing: 2,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              _destination ?? "Поиск пути...",
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.close, color: Colors.white54),
+                        onPressed: _stopNavigation,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+
+          // REAL-TIME SCANNING INDICATOR
+          if (_isNavigating && _isSafetyScanning)
+            Positioned(
+              bottom: 120,
+              left: 40,
+              right: 40,
+              child: FadeInUp(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+                  decoration: BoxDecoration(
+                    color: Colors.black54,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: Colors.blueAccent.withOpacity(0.3)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const SizedBox(
+                        width: 12,
+                        height: 12,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation<Color>(Colors.blueAccent),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Text(
+                        "ИИ АНАЛИЗИРУЕТ ПУТЬ",
+                        style: TextStyle(
+                          color: Colors.blueAccent.shade100,
+                          fontSize: 9,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 1.5,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+
+
+          
+          // Speech Recognition Hub (Overlay)
+          if (_isRecording && _partialSpeechText.isNotEmpty)
+            Positioned(
+              bottom: 120,
+              left: 20,
+              right: 20,
+              child: FadeInUp(
+                duration: const Duration(milliseconds: 300),
+                child: GlassContainer(
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
+                  child: Row(
+                    children: [
+                      const PulseAnimation(
+                        child: Icon(Icons.mic, color: Color(0xFF00D4FF), size: 24),
+                      ),
+                      const SizedBox(width: 15),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              "Слушаю команда...",
+                              style: TextStyle(
+                                color: Colors.white.withOpacity(0.5),
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              _partialSpeechText,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 16,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
           
           // Animated Wake Word Indicator
           if (_wakeWordEnabled && _currentIndex != TAB_SETTINGS)
@@ -501,7 +1066,8 @@ class _MainNavScreenState extends State<MainNavScreen> with WidgetsBindingObserv
                 builder: (context, value, child) {
                   final pulseValue = (value * 2 * 3.14159);
                   final scale = 1.0 + (0.1 * (1 + sin(pulseValue)));
-                  final opacity = 0.6 + (0.4 * (1 + sin(pulseValue)));
+                  // Corrected opacity calculation to ensure it stays in [0.0, 1.0]
+                  final opacity = (0.7 + (0.15 * (1 + sin(pulseValue)))).clamp(0.0, 1.0);
                   
                   return Transform.scale(
                     scale: scale,
@@ -572,26 +1138,16 @@ class _MainNavScreenState extends State<MainNavScreen> with WidgetsBindingObserv
         ],
       ),
       
-      // Floating Recording Button (only on Chat & Vision)
-      floatingActionButton: _currentIndex != TAB_SETTINGS ? GestureDetector(
-        onTap: _handleVoiceButton,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 300),
-          height: 70, width: 70,
-          decoration: BoxDecoration(
-            color: _isRecording ? const Color(0xFFFF2E63) : const Color(0xFF00D4FF),
-            borderRadius: BorderRadius.circular(_isRecording ? 8 : 35), // Square when recording
-            boxShadow: [
-              BoxShadow(
-                color: (_isRecording ? Colors.red : Theme.of(context).primaryColor).withOpacity(0.5),
-                blurRadius: 20,
-                spreadRadius: _isRecording ? 3 : 0
-              )
-            ]
-          ),
-          child: Icon(_isRecording ? Icons.stop_rounded : Icons.mic, color: Colors.white, size: 32),
-        ),
-      ) : null,
+      // Floating Recording Button (only on Chat & Vision) - PREMIUM VERSION
+      floatingActionButton: _currentIndex != TAB_SETTINGS 
+        ? PulsingMicAnimation(
+            isActive: _isRecording,
+            onTap: () {
+              HapticService.mediumImpact();
+              _handleVoiceButton();
+            },
+          )
+        : null,
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
 
       bottomNavigationBar: BottomAppBar(
@@ -603,18 +1159,27 @@ class _MainNavScreenState extends State<MainNavScreen> with WidgetsBindingObserv
           children: [
             IconButton(
               icon: Icon(Icons.chat_bubble_outline, color: _currentIndex == 0 ? const Color(0xFF00D4FF) : Colors.white38),
-              onPressed: () => setState(() => _currentIndex = 0),
+              onPressed: () {
+                HapticService.lightImpact();
+                setState(() => _currentIndex = 0);
+              },
               tooltip: l10n.chatMode,
             ),
             const SizedBox(width: 20), // Spacer for FAB
             IconButton(
               icon: Icon(Icons.remove_red_eye_outlined, color: _currentIndex == 1 ? const Color(0xFF00D4FF) : Colors.white38),
-              onPressed: () => setState(() => _currentIndex = 1),
+              onPressed: () {
+                HapticService.lightImpact();
+                setState(() => _currentIndex = 1);
+              },
               tooltip: l10n.navigatorMode,
             ),
              IconButton(
               icon: Icon(Icons.settings_outlined, color: _currentIndex == 2 ? const Color(0xFF00D4FF) : Colors.white38),
-              onPressed: () => setState(() => _currentIndex = 2),
+              onPressed: () {
+                HapticService.lightImpact();
+                setState(() => _currentIndex = 2);
+              },
               tooltip: l10n.settings,
             ),
           ],
@@ -623,172 +1188,45 @@ class _MainNavScreenState extends State<MainNavScreen> with WidgetsBindingObserv
     );
   }
 
-  Widget _buildSettingsScreen(AppLocalizations l10n) {
+  Widget _buildRadarIcon() {
     return Container(
-      padding: const EdgeInsets.all(24),
-      child: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const SizedBox(height: 50),
-            Text(l10n.settings, style: Theme.of(context).textTheme.displayMedium),
-            const SizedBox(height: 30),
-            
-            // User Profile Section
-            FutureBuilder<Map<String, dynamic>?>(
-              future: AuthService().getProfile(),
-              builder: (context, snapshot) {
-                if (snapshot.hasData && snapshot.data != null) {
-                  final user = snapshot.data!;
-                  return GlassContainer(
-                    child: Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Row(
-                        children: [
-                          CircleAvatar(
-                            radius: 30,
-                            backgroundColor: const Color(0xFF00D4FF),
-                            child: Text(
-                              user['username']?.toString().substring(0, 1).toUpperCase() ?? 'U',
-                              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-                            ),
-                          ),
-                          const SizedBox(width: 16),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  user['username'] ?? 'User',
-                                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
-                                ),
-                                Text(
-                                  user['email'] ?? '',
-                                  style: const TextStyle(fontSize: 14, color: Colors.white70),
-                                ),
-                                const SizedBox(height: 4),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFF00E676).withOpacity(0.2),
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  child: Text(
-                                    (user['subscription_type'] ?? 'free').toString().toUpperCase(),
-                                    style: const TextStyle(fontSize: 10, color: Color(0xFF00E676), fontWeight: FontWeight.bold),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          IconButton(
-                            icon: const Icon(Icons.logout, color: Colors.redAccent),
-                            onPressed: () async {
-                              await AuthService().logout();
-                              if (mounted) Navigator.of(context).pushReplacementNamed('/login');
-                            },
-                          ),
-                        ],
-                      ),
-                    ),
-                  );
-                }
-                return GlassContainer(
-                  child: ListTile(
-                    leading: const Icon(Icons.login, color: Color(0xFF00D4FF)),
-                    title: const Text('Sign In'),
-                    subtitle: const Text('Get unlimited access'),
-                    trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                    onTap: () => Navigator.of(context).pushNamed('/login'),
-                  ),
-                );
-              },
-            ),
-            
-            const SizedBox(height: 30),
-            Text("Language / Язык", style: Theme.of(context).textTheme.bodyLarge),
-            const SizedBox(height: 10),
-            GlassContainer(
-              child: Column(
-                children: [
-                  ListTile(title: const Text("🇺🇸 English"), onTap: () => widget.onLocaleChange(const Locale('en'))),
-                  const Divider(height: 1, color: Colors.white24),
-                  ListTile(title: const Text("🇷🇺 Русский"), onTap: () => widget.onLocaleChange(const Locale('ru'))),
-                  const Divider(height: 1, color: Colors.white24),
-                  ListTile(title: const Text("🇰🇬 Кыргызча"), onTap: () => widget.onLocaleChange(const Locale('ky'))),
-                ],
+      width: 45,
+      height: 45,
+      decoration: BoxDecoration(
+        color: Colors.blueAccent.withOpacity(0.15),
+        shape: BoxShape.circle,
+        border: Border.all(color: Colors.blueAccent.withOpacity(0.3)),
+      ),
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          PulseAnimation(
+            child: Container(
+              width: 25,
+              height: 25,
+              decoration: BoxDecoration(
+                color: Colors.blueAccent.withOpacity(0.4),
+                shape: BoxShape.circle,
               ),
             ),
-            
-            const SizedBox(height: 30),
-            Text(l10n.serverUrl, style: Theme.of(context).textTheme.bodyLarge),
-            const SizedBox(height: 10),
-            GlassContainer(
-              child: ListTile(
-                leading: const Icon(Icons.link),
-                title: const Text("Server Connection"),
-                subtitle: const Text("Configure backend URL"),
-                trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                onTap: () {
-                  // Add dialog here
-                },
-              ),
-            ),
-            
-            const SizedBox(height: 30),
-            Text("Voice Activation", style: Theme.of(context).textTheme.bodyLarge),
-            const SizedBox(height: 10),
-            GlassContainer(
-              child: SwitchListTile(
-                secondary: const Icon(Icons.mic_none),
-                title: const Text("\"WayFinder\" Activation"),
-                subtitle: Text(_wakeWordEnabled 
-                  ? "Listening for 'WayFinder'..." 
-                  : "Voice activation disabled"),
-                value: _wakeWordEnabled,
-                onChanged: (value) => _toggleWakeWord(),
-                activeColor: const Color(0xFF00E676),
-              ),
-            ),
-            
-            const SizedBox(height: 30),
-            Text("Chat History", style: Theme.of(context).textTheme.bodyLarge),
-            const SizedBox(height: 10),
-            GlassContainer(
-              child: ListTile(
-                leading: const Icon(Icons.delete_outline, color: Colors.redAccent),
-                title: const Text("Clear Chat History"),
-                subtitle: Text("${_messages.length} messages stored"),
-                trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                onTap: () async {
-                  final confirm = await showDialog<bool>(
-                    context: context,
-                    builder: (context) => AlertDialog(
-                      backgroundColor: const Color(0xFF1E1E24),
-                      title: const Text("Clear History?", style: TextStyle(color: Colors.white)),
-                      content: const Text("This will delete all chat messages.", style: TextStyle(color: Colors.white70)),
-                      actions: [
-                        TextButton(
-                          onPressed: () => Navigator.pop(context, false),
-                          child: const Text("Cancel"),
-                        ),
-                        TextButton(
-                          onPressed: () => Navigator.pop(context, true),
-                          child: const Text("Clear", style: TextStyle(color: Colors.redAccent)),
-                        ),
-                      ],
-                    ),
-                  );
-                  if (confirm == true) {
-                    await _clearChatHistory();
-                  }
-                },
-              ),
-            ),
-            const SizedBox(height: 100), // Bottom padding for scroll
-          ],
-        ),
+          ),
+          const Icon(Icons.navigation_rounded, color: Colors.white, size: 24),
+        ],
       ),
     );
+  }
+
+  Future<void> _clearChatHistory() async {
+    await _chatHistory.clearHistory();
+    setState(() {
+      _messages.clear();
+    });
+    _addInitialMessage();
+    HapticService.heavyImpact();
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("История чата очищена")),
+      );
+    }
   }
 }

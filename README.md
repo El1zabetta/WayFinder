@@ -1,114 +1,71 @@
-# WayFinder
+# 🧭 WayFinder AI: The Ultimate Vision Assistant
 
-**High-Performance AI Vision & Navigation Assistant**
-
-WayFinder is an advanced, real-time AI assistant capable of seeing, hearing, and guiding users. It combines state-of-the-art computer vision models, ultra-fast speech recognition, and intelligent navigation into a seamless experience.
-
-## key Features
-
-### 🚀 Ultra-Fast Performance
-- **Parallel Processing**: Simultaneous audio and visual analysis for instant feedback.
-- **Optimized AI Stack**: Uses **Whisper Tiny** for millisecond-latency speech recognition and **YOLOv8 Nano** for rapid object detection.
-- **Smart Resource Management**: Intelligent image downscaling (640px) reduces latency by up to 300% without losing accuracy.
-- **Edge TTS**: High-quality, natural-sounding voice generation powered by Microsoft Edge cloud APIs.
-
-### 🧠 Intelligent Capabilities
-- **Eyes & Ears**:
-  - **Vision**: Analyzes surroundings using **BLIP** (Scene Understanding) and **YOLOv8** (Object Detection).
-  - **Hearing**: Listens for the wake word **"WayFinder"** (powered by Porcupine) for hands-free operation.
-  - **Reading**: Extracts text from the environment using **EasyOCR**.
-- **Contextual Awareness**: Remembers conversation history and adapts responses to the user's profile using the **CAG (Context-Affect-Guidance) System**.
-
-### 📱 Applications
-- **Smart Navigation**: Extracts destinations from voice commands and builds routes.
-- **Visual Assistant**: Describes scenes, reads signs, and identifies objects in real-time.
-- **Interactive Chat**: Full-duplex conversation with visual context awareness.
+WayFinder is a cutting-edge, AI-powered navigation and safety platform designed to empower visually impaired individuals with unparalleled independence. By combining real-time Computer Vision, 3D Spatial Audio, and advanced GPS routing, WayFinder acts as a "Virtual Guide" that doesn't just show the way, but actively protects the user.
 
 ---
 
-## Tech Stack
+## 🌟 Key Features
 
-### Backend
-- **Core**: Django 6.0 (Asynchronous)
-- **AI Models**:
-  - **STT**: Faster-Whisper (Tiny/Int8)
-  - **Vision**: Salesforce BLIP, Ultralytics YOLOv8, EasyOCR
-  - **LLM Integration**: DeepSeek / OpenAI API
-  - **Wake Word**: Picovoice Porcupine (Server-side & Mobile)
-- **Database**: PostgreSQL / SQLite
+### 🧠 1. Virtual Guide (AI Vision)
+Using **Gemini 1.5 Flash**, WayFinder analyzes the camera feed in real-time to detect hazards:
+*   **Safety Critical Alerts:** Immediate warning for open manholes, moving vehicles, and red traffic lights.
+*   **Intelligent Pathfinding:** Recognizes crowds and flow of people to suggest the safest crossing windows.
+*   **Scene Description:** "What do I see?" mode provides a rich, contextual description of the surroundings.
+
+### 🎧 2. 3D Spatial Navigation
+*   **Directional Audio:** Navigation instructions are panned to the left or right ear based on the user's orientation (using the compass). If the turn is right, the voice comes from the right.
+*   **Haptic Feedback:** Professional vibration patterns for different events (turning, obstacles, arrival).
+
+### 🔍 3. Intelligent Object Search
+*   High-precision mode to find specific objects like "a free seat", "the door", or "a cup" using continuous visual feedback and directional cues.
+
+### 🔐 4. Voice-First Onboarding & Auth
+*   **Complete Voice Onboarding:** The app guides new users through setup, language selection, and features entirely via voice.
+*   **Seamless Google Login:** Securely sync history and settings using native Google Sign-In.
+
+---
+
+## 🛠 Tech Stack
 
 ### Mobile (Flutter)
-- **Framework**: Flutter 3.x
-- **Navigation**: Geolocator, OpenRouteService
-- **Voice**: Porcupine Wake Word Engine
-- **UI**: Material Design 3 with Dark Mode
+- **State Management:** Provider / State UI
+- **AI Integration:** Google Generative AI (Gemini)
+- **Wake Word:** Picovoice Porcupine ("WayFinder")
+- **Audio:** AudioPlayers (3D Panning), Record, Flutter TTS
+- **Sensors:** Geolocator (GPS), Flutter Compass, SensorsPlus
+
+### Backend (Django)
+- **API:** Django REST Framework
+- **Auth:** Knox Token Auth + Google OAuth 2.0
+- **Database:** PostgreSQL / SQLite
+- **Security:** Fully protected endpoints with usage limiting
 
 ---
 
-## Installation & Setup
+## 🚀 Getting Started
 
-### 1. Backend Setup (Windows/Linux)
+### 1. Backend Setup
+1. Clone the repository.
+2. Create a virtual environment: `python -m venv venv`.
+3. Install dependencies: `pip install -r requirements.txt`.
+4. Setup `.env` file (see `.env.example`).
+5. Run migrations: `python manage.py migrate`.
+6. Start server: `python manage.py runserver`.
 
-```bash
-# Clone repository
-git clone <your-repo-url>
-cd WayFinder
-
-# Create virtual environment
-python -m venv venv
-# Windows:
-venv\Scripts\activate
-# Linux/Mac:
-source venv/bin/activate
-
-# Install dependencies (ensure Pytorch is installed for your CUDA version if available)
-pip install -r requirements.txt
-
-# Create .env file
-cp .env.example .env
-# Add your keys: OPENAI_API_KEY, PICOVOICE_ACCESS_KEY, etc.
-
-# Run migrations and start server
-python manage.py migrate
-python manage.py runserver
-```
-
-### 2. Mobile Setup
-
-```bash
-cd vision_mobile
-
-# Install packages
-flutter pub get
-
-# Run on connected device
-flutter run
-```
+### 2. Mobile Setup (WayFinder)
+1. Navigate to `WayFinder/`.
+2. Install Flutter dependencies: `flutter pub get`.
+3. **Important:** Create `lib/secrets.dart` from `lib/secrets.dart.example` and add your API keys.
+4. Add your `google-services.json` to `android/app/`.
+5. Run the app: `flutter run`.
 
 ---
 
-## Wake Word Configuration
+## 🛡 Security & Privacy
+WayFinder is built with privacy in mind. No images are stored on our servers longer than necessary for processing. All communications are encrypted over HTTPS.
 
-The system uses **Porcupine** for wake word detection.
-- **Wake Phrase**: "Way Finder"
-- **Files**:
-  - Windows: `Way-Finder_en_windows_v4_0_0.ppn` (Server-side listening)
-  - Android: `assets/models/way_finder_android.ppn` (Mobile listening)
-
-Ensure `PICOVOICE_ACCESS_KEY` is set in your `.env` file for this feature to work.
+## 📄 License
+This project is licensed under the MIT License - see the LICENSE file for details.
 
 ---
-
-## Usage
-
-1. **Start the App/Server**: Ensure both backend and mobile app are running.
-2. **Say "WayFinder"**: The system will wake up and listen for your command.
-3. **Voice Commands**:
-   - *"What is in front of me?"*
-   - *"Read this text."*
-   - *"How do I get to [Street Name]?"*
-   - *"Where am I?"*
-
----
-
-*Project maintained by the developer. No external liabilities.*
+*Created with ❤️ by Erbol Takhirov*

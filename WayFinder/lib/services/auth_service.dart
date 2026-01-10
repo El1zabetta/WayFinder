@@ -6,6 +6,7 @@ import 'package:google_sign_in/google_sign_in.dart';
 class AuthService {
   static const String baseUrl = 'https://tristian-weightier-loblolly.ngrok-free.dev'; 
   final GoogleSignIn _googleSignIn = GoogleSignIn(
+    serverClientId: '134229584480-334prfbri8hbkbu0qanram8j3nvcgr9q.apps.googleusercontent.com',
     scopes: ['email', 'profile'],
   );
   
@@ -64,7 +65,10 @@ class AuthService {
       
       final response = await http.post(
         Uri.parse('$baseUrl/api/auth/google/'),
-        headers: {'Content-Type': 'application/json'},
+        headers: {
+          'Content-Type': 'application/json',
+          'ngrok-skip-browser-warning': 'true',
+        },
         body: json.encode({
           'access_token': idToken, // We send ID token as 'access_token' field
         }),
@@ -85,6 +89,23 @@ class AuthService {
         return {'success': false, 'error': data['error'] ?? 'Backend validation failed'};
       }
 
+    } on Exception catch (e) {
+      print('❌ Google Sign-In Exception: $e');
+      
+      // Handle specific error codes
+      String errorMessage = e.toString();
+      if (errorMessage.contains('ApiException: 10')) {
+        errorMessage = 'Google Sign-In configuration error (API 10). Possible fixes:\n'
+            '1. Ensure "Support email" is selected in Firebase Project Settings!\n'
+            '2. Ensure Google provider is ENABLED in Firebase Auth tab.\n'
+            '3. SHA-1 ($errorMessage) must match Firebase console.\n'
+            '4. Try uninstalling the app and running flutter clean.';
+        print('🚨 CRITICAL: Check Support Email in Firebase Project Settings!');
+      } else if (errorMessage.contains('sign_in_failed')) {
+        errorMessage = 'Google Sign-In failed. Please try again or use email/password.';
+      }
+      
+      return {'success': false, 'error': errorMessage};
     } catch (e) {
       print('❌ Google Sign-In error: $e');
       return {'success': false, 'error': e.toString()};
@@ -137,7 +158,10 @@ class AuthService {
     try {
       final response = await http.post(
         Uri.parse('$baseUrl/api/auth/login/'),
-        headers: {'Content-Type': 'application/json'},
+        headers: {
+          'Content-Type': 'application/json',
+          'ngrok-skip-browser-warning': 'true',
+        },
         body: json.encode({
           'username': username,
           'password': password,

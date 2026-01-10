@@ -45,25 +45,53 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.googleusercontent.apps.134229584480-7db0836a7c3b12689cb105</string>
+			</array>
+		</dict>
+	</array>
 	
 	<!-- Privacy - Camera Usage Description -->
 	<key>NSCameraUsageDescription</key>
-	<string>Нужен доступ к камере для распознавания объектов и навигации</string>
+	<string>WayFinder needs camera access to identify objects in front of you and help with navigation.</string>
 	
 	<!-- Privacy - Microphone Usage Description -->
 	<key>NSMicrophoneUsageDescription</key>
-	<string>Нужен доступ к микрофону для голосовых команд и wake word detection</string>
+	<string>WayFinder needs microphone access to listen for your voice commands and the 'Hey WayFinder' wake word.</string>
 	
 	<!-- Privacy - Location When In Use Usage Description -->
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>Нужен доступ к геолокации для построения маршрутов и навигации</string>
+	<string>WayFinder uses your location to provide accurate turn-by-turn navigation and build routes.</string>
 	
 	<!-- Privacy - Location Always Usage Description -->
 	<key>NSLocationAlwaysUsageDescription</key>
-	<string>Нужен доступ к геолокации для навигации в фоновом режиме</string>
+	<string>WayFinder requires background location to continue guiding you even when your phone is in your pocket.</string>
 	
 	<!-- Privacy - Speech Recognition Usage Description -->
 	<key>NSSpeechRecognitionUsageDescription</key>
-	<string>Нужен доступ к распознаванию речи для команды "Эй Вижион"</string>
+	<string>WayFinder uses speech recognition to convert your voice into text commands for the AI.</string>
+
+	<!-- Privacy - Photo Library Usage Description -->
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>WayFinder may need access to your photos if you want to analyze saved images.</string>
+
+	<!-- Required for Background Modes -->
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>audio</string>
+		<string>location</string>
+		<string>fetch</string>
+		<string>remote-notification</string>
+	</array>
+
+	<!-- Performance and UI -->
+	<key>io.flutter.embedded_views_preview</key>
+	<true/>
 </dict>
 </plist>

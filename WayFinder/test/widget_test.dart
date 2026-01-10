@@ -8,23 +8,22 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:vision_mobile/main.dart';
+import 'package:way_finder/main.dart';
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const MyApp());
+  testWidgets('App initialization smoke test', (WidgetTester tester) async {
+    // 1. Build our app
+    await tester.pumpWidget(const VisionApp());
+    
+    // 2. Advance time by 5 seconds to clear the 3-second SplashScreen timer
+    // and wait for any initial animations to run.
+    await tester.pump(const Duration(seconds: 5));
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
+    // 3. Verify that the app structure is present
+    expect(find.byType(VisionApp), findsOneWidget);
 
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
-
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+    // 4. Clean up the widget tree and trigger dipose()
+    await tester.pumpWidget(Container());
+    await tester.pump(const Duration(seconds: 1));
   });
 }

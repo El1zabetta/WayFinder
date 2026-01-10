@@ -113,15 +113,27 @@ class NavigationService {
     try {
       final route = data['routes'][0];
       final segments = route['segments'] as List;
+      final geometry = route['geometry'] as String;
+      
+      // Decode the polyline geometry to get actual coordinates
+      final fullPath = _decodePolyline(geometry);
       
       for (var segment in segments) {
         final stepsList = segment['steps'] as List;
         for (var step in stepsList) {
+          final stepWaypoints = step['way_points'] as List;
+          final startPointIdx = stepWaypoints[0] as int;
+          
+          // Get the actual lat/lng for the start of this step
+          final startPoint = fullPath[startPointIdx];
+          
           steps.add(NavigationStep(
             instruction: step['instruction'] ?? '',
             distance: (step['distance'] ?? 0).toDouble(),
             duration: (step['duration'] ?? 0).toDouble(),
             type: step['type']?.toString() ?? 'straight',
+            lat: startPoint[0],
+            lng: startPoint[1],
           ));
         }
       }
@@ -130,6 +142,37 @@ class NavigationService {
     }
     
     return steps;
+  }
+
+  // Helper to decode Google/ORS Polyline format
+  List<List<double>> _decodePolyline(String encoded) {
+    List<List<double>> points = [];
+    int index = 0, len = encoded.length;
+    int lat = 0, lng = 0;
+
+    while (index < len) {
+      int b, shift = 0, result = 0;
+      do {
+        b = encoded.codeUnitAt(index++) - 63;
+        result |= (b & 0x1f) << shift;
+        shift += 5;
+      } while (b >= 0x20);
+      int dlat = ((result & 1) != 0 ? ~(result >> 1) : (result >> 1));
+      lat += dlat;
+
+      shift = 0;
+      result = 0;
+      do {
+        b = encoded.codeUnitAt(index++) - 63;
+        result |= (b & 0x1f) << shift;
+        shift += 5;
+      } while (b >= 0x20);
+      int dlng = ((result & 1) != 0 ? ~(result >> 1) : (result >> 1));
+      lng += dlng;
+
+      points.add([lat / 1E5, lng / 1E5]);
+    }
+    return points;
   }
 
   // Get current navigation instruction
@@ -143,11 +186,18 @@ class NavigationService {
   }
 
   String _formatInstruction(NavigationStep step) {
-    final distanceText = step.distance < 100 
-      ? '${step.distance.toInt()} метров'
-      : '${(step.distance / 1000).toStringAsFixed(1)} километров';
+    final distanceInt = step.distance.toInt();
+    if (distanceInt < 5) return step.instruction;
     
-    return '${step.instruction}. Расстояние: $distanceText';
+    String distStr;
+    if (distanceInt < 1000) {
+      distStr = 'через $distanceInt метров';
+    } else {
+      final km = (step.distance / 1000).toStringAsFixed(1);
+      distStr = 'через $km километра';
+    }
+    
+    return '$distStr ${step.instruction}';
   }
 
   // Move to next step
@@ -160,15 +210,35 @@ class NavigationService {
   // Check if we should move to next step based on location
   Future<bool> checkStepProgress() async {
     final currentPos = await getCurrentLocation();
-    if (currentPos == null || _currentRoute.isEmpty) return false;
+    if (currentPos == null || _currentRoute.isEmpty || _currentStepIndex >= _currentRoute.length - 1) return false;
     
-    // Simple distance-based check
-    // In production, you'd want more sophisticated logic
-    final step = _currentRoute[_currentStepIndex];
+    // Check distance to NEXT step waypoint
+    final nextStep = _currentRoute[_currentStepIndex + 1];
+    final distanceToNext = calculateDistance(
+      currentPos.latitude, 
+      currentPos.longitude, 
+      nextStep.lat, 
+      nextStep.lng
+    );
+
+    // If within 10 meters of the next step waypoint, advance
+    if (distanceToNext < 10) {
+      _currentStepIndex++;
+      return true;
+    }
+    return false;
+  }
+
+  double getBearingToNextStep(double currentLat, double currentLng) {
+    if (_currentRoute.isEmpty || _currentStepIndex >= _currentRoute.length - 1) return 0;
     
-    // If we've traveled the step distance, move to next
-    // This is simplified - you'd want to track actual progress
-    return false; // Implement proper logic here
+    final nextStep = _currentRoute[_currentStepIndex + 1];
+    return Geolocator.bearingBetween(currentLat, currentLng, nextStep.lat, nextStep.lng);
+  }
+
+
+  double calculateDistance(double lat1, double lon1, double lat2, double lon2) {
+    return Geolocator.distanceBetween(lat1, lon1, lat2, lon2);
   }
 
   // Listen to location updates for turn-by-turn navigation
@@ -195,11 +265,15 @@ class NavigationStep {
   final double distance;
   final double duration;
   final String type;
+  final double lat;
+  final double lng;
 
   NavigationStep({
     required this.instruction,
     required this.distance,
     required this.duration,
     required this.type,
+    required this.lat,
+    required this.lng,
   });
 }

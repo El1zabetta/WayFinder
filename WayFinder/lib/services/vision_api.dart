@@ -21,6 +21,7 @@ class VisionApiService {
     final uri = Uri.parse('$baseUrl/api/smart-analyze/');
 
     var request = http.MultipartRequest('POST', uri);
+    request.headers['ngrok-skip-browser-warning'] = 'true';
     
     // Add User ID (stub for now, could be device ID)
     request.fields['user_id'] = 'mobile_user_pro';
@@ -59,6 +60,7 @@ class VisionApiService {
     final uri = Uri.parse('$baseUrl/api/navigate/');
 
     var request = http.MultipartRequest('POST', uri);
+    request.headers['ngrok-skip-browser-warning'] = 'true';
     
     request.fields['user_id'] = 'mobile_user_pro';
     request.fields['text'] = text;

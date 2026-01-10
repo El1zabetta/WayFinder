@@ -16,7 +16,7 @@ staticfiles/
 .env
 *.sqlite3
 
-# Flutter (WayFinder & Legacy vision_mobile)
+# Flutter (WayFinder)
 WayFinder/.dart_tool/
 WayFinder/.idea/
 WayFinder/.pub/
@@ -34,10 +34,22 @@ WayFinder/android/app/profile/
 WayFinder/android/app/release/
 WayFinder/android/app/google-services.json
 
+# Legacy / Temp
 vision_mobile/
+temp/
+tmp/
+*.tmp
+.cache/
+*.md.backup
 
-# Node / JS (if any)
-node_modules/
+# AI & Dev Notes (Keep project clean for public)
+PROJECT_STATUS_REPORT.md
+AI_SYSTEM_DOCS.txt
+GOOGLE_SIGNIN_FIX.txt
+QUICK_START_WAKE_WORD.txt
+INSANE_FEATURES.txt
+PREMIUM_FEATURES.txt
+.agent/
 
 # Secrets & Keys
 *.key
@@ -47,17 +59,3 @@ secrets.dart
 *.ppn.backup
 tunnels.json
 google-services.json
-
-# AI Artifacts & Temp
-.agent/
-*.md.backup
-temp/
-tmp/
-*.tmp
-.cache/
-
-# Markdown files (keeping user preference, but generally not recommended for public repos unless they are just notes)
-*.md
-!README.md
-!README_MOBILE.md
-!README_SMART_GLASSES.md

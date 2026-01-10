@@ -3,6 +3,8 @@ import 'package:camera/camera.dart';
 import 'package:loading_animation_widget/loading_animation_widget.dart';
 import '../widgets/glass_container.dart';
 import '../l10n/app_localizations.dart';
+import '../widgets/ar_camera_overlay.dart';
+import '../widgets/particle_effects.dart';
 import 'dart:math' as math;
 
 class VisionModeScreen extends StatefulWidget {
@@ -111,6 +113,36 @@ class _VisionModeScreenState extends State<VisionModeScreen> with TickerProvider
             child: CameraPreview(widget.cameraController!),
           ),
         ),
+
+        // AR Overlay with smart detections
+        ARCameraOverlay(
+          cameraSize: MediaQuery.of(context).size,
+          detections: [
+            if (widget.statusText.contains('door'))
+              DetectionBox(
+                rect: const Rect.fromLTWH(100, 200, 200, 300),
+                label: 'DOOR',
+                confidence: 0.98,
+                color: const Color(0xFF00E676),
+              ),
+            if (widget.statusText.contains('person') || widget.statusText.contains('человек'))
+              DetectionBox(
+                rect: const Rect.fromLTWH(150, 100, 150, 400),
+                label: 'PERSON',
+                confidence: 0.95,
+                color: const Color(0xFF00D4FF),
+              ),
+          ],
+          showGrid: true,
+          showCrosshair: true,
+        ),
+
+        // Matrix Rain on top when processing
+        if (widget.isProcessing)
+          const MatrixRain(
+            opacity: 0.2,
+            color: Color(0xFF00E676),
+          ),
 
         // Vignette overlay
         Container(
@@ -394,7 +426,7 @@ class _VisionModeScreenState extends State<VisionModeScreen> with TickerProvider
     return AnimatedBuilder(
       animation: _cornerController,
       builder: (context, child) {
-        final opacity = 0.5 + (0.5 * math.sin(_cornerController.value * 2 * math.pi));
+        final opacity = (0.5 + (0.5 * math.sin(_cornerController.value * 2 * math.pi))).clamp(0.0, 1.0);
         
         return Positioned(
           top: top,

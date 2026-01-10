@@ -1,7 +1,9 @@
 import 'package:porcupine_flutter/porcupine_manager.dart';
 import 'package:porcupine_flutter/porcupine_error.dart';
 import 'package:porcupine_flutter/porcupine.dart';
-import '../secrets.dart'; // Нужно убедиться, что там есть picovoiceAccessKey
+import 'package:permission_handler/permission_handler.dart';
+import 'dart:io';
+import '../secrets.dart';
 
 class PorcupineWakeWordService {
   PorcupineManager? _porcupineManager;
@@ -9,6 +11,7 @@ class PorcupineWakeWordService {
   final Function(String error)? onError;
   
   bool _isListening = false;
+  bool _isInitialized = false;
 
   PorcupineWakeWordService({
     required this.onWakeWordDetected,
@@ -16,44 +19,89 @@ class PorcupineWakeWordService {
   });
 
   Future<void> initialize() async {
+    print("🔧 [PORCUPINE] Starting initialization with WayFinder model...");
+    
+    // 1. Check microphone permission
+    final micStatus = await Permission.microphone.status;
+    if (!micStatus.isGranted) {
+      final result = await Permission.microphone.request();
+      if (!result.isGranted) {
+        onError?.call("Microphone permission denied.");
+        return;
+      }
+    }
+    
+    // 2. Select access key based on platform
+    String accessKey = Secrets.picovoiceAccessKey;
+    if (Platform.isIOS) {
+      accessKey = Secrets.picovoiceAccessKeyIos;
+    }
+
+    if (accessKey.isEmpty || accessKey == 'YOUR_PICOVOICE_ACCESS_KEY_HERE') {
+      final errorMsg = "Picovoice Access Key missing for this platform. Please add it to secrets.dart";
+      print("❌ [PORCUPINE] $errorMsg");
+      onError?.call(errorMsg);
+      return;
+    }
+    
     try {
-      // Используем кастомное слово "WayFinder" из файла .ppn
+      // 3. Initialize Porcupine with custom wake word "WayFinder"
+      String keywordPath = '';
+      if (Platform.isAndroid) {
+        keywordPath = 'assets/words/way_finder_android.ppn';
+      } else if (Platform.isIOS) {
+        keywordPath = 'assets/words/way_finder_ios.ppn';
+      } else {
+        keywordPath = 'assets/words/way_finder.ppn'; // Default/Fallback
+      }
+
+      print("📂 [PORCUPINE] Loading platform model: $keywordPath");
+      
       _porcupineManager = await PorcupineManager.fromKeywordPaths(
-        Secrets.picovoiceAccessKey,
-        ['assets/words/way_finder_android.ppn'], 
+        accessKey,
+        [keywordPath], 
         _wakeWordCallback,
         errorCallback: _errorCallback
       );
-      print("✅ Porcupine (WayFinder) initialized");
+      
+      _isInitialized = true;
+      print("✅ [PORCUPINE] WayFinder wake word ready!");
+      
     } on PorcupineException catch (err) {
-      print("❌ Porcupine init error: $err");
-      onError?.call(err.toString());
+      _isInitialized = false;
+      String friendlyError = "Porcupine Error: ${err.message}";
+      if (err.message?.contains("INVALID_ARGUMENT") ?? false) {
+        friendlyError = "Invalid model file or Access Key";
+      }
+      print("❌ [PORCUPINE] $friendlyError");
+      onError?.call(friendlyError);
     } catch (err) {
-      print("❌ Generic error: $err");
-      onError?.call(err.toString());
+      _isInitialized = false;
+      onError?.call("Initialization failed: $err");
     }
   }
 
   void _wakeWordCallback(int keywordIndex) {
     if (keywordIndex == 0) {
-      print("🚀 WAYFINDER DETECTED!");
+      print("🚀 [PORCUPINE] WAYFINDER ACTIVATED!");
       onWakeWordDetected();
     }
   }
 
   void _errorCallback(PorcupineException error) {
-    print("❌ Porcupine error: $error");
-    onError?.call(error.message ?? "Unknown error");
+    print("❌ [PORCUPINE] Runtime error: $error");
+    onError?.call(error.message ?? "Runtime error");
   }
 
   Future<void> startListening() async {
-    if (_isListening) return;
+    if (!_isInitialized || _isListening) return;
     try {
       await _porcupineManager?.start();
       _isListening = true;
-      print("👂 Porcupine started listening...");
-    } on PorcupineException catch (ex) {
-      print("❌ Failed to start Porcupine: $ex");
+      print("👂 [PORCUPINE] Listening list for 'WayFinder'...");
+    } catch (e) {
+      _isListening = false;
+      onError?.call("Failed to start: $e");
     }
   }
 
@@ -62,13 +110,17 @@ class PorcupineWakeWordService {
     try {
       await _porcupineManager?.stop();
       _isListening = false;
-      print("🛑 Porcupine stopped.");
-    } on PorcupineException catch (ex) {
-      print("❌ Failed to stop Porcupine: $ex");
+    } catch (e) {
+      print("❌ [PORCUPINE] Stop error: $e");
     }
   }
 
   Future<void> dispose() async {
+    await stopListening();
     await _porcupineManager?.delete();
+    _isInitialized = false;
   }
+  
+  bool get isListening => _isListening;
+  bool get isInitialized => _isInitialized;
 }

@@ -5,9 +5,12 @@
 list(APPEND FLUTTER_PLUGIN_LIST
   audioplayers_windows
   file_selector_windows
+  firebase_auth
+  firebase_core
   geolocator_windows
   permission_handler_windows
   record_windows
+  rive_common
   speech_to_text_windows
 )
 

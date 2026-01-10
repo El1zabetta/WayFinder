@@ -142,7 +142,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
                       scale: value,
                       alignment: msg.isUser ? Alignment.centerRight : Alignment.centerLeft,
                       child: Opacity(
-                        opacity: value,
+                        opacity: value.clamp(0.0, 1.0),
                         child: child,
                       ),
                     );
