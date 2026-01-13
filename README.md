@@ -64,8 +64,4 @@ Using **Gemini 1.5 Flash**, WayFinder analyzes the camera feed in real-time to d
 ## 🛡 Security & Privacy
 WayFinder is built with privacy in mind. No images are stored on our servers longer than necessary for processing. All communications are encrypted over HTTPS.
 
-## 📄 License
-This project is licensed under the MIT License - see the LICENSE file for details.
 
----
-*Created with ❤️ by Erbol Takhirov*
