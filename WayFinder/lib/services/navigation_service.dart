@@ -8,103 +8,305 @@ class NavigationService {
   Position? _currentPosition;
   List<NavigationStep> _currentRoute = [];
   int _currentStepIndex = 0;
+
+  Position? get currentPosition => _currentPosition;
+  String? _currentCity; // Cached city name from reverse geocoding
+  String? _currentCountry;
   
-  // Get current location
+  // Get current location - Optimized for speed
   Future<Position?> getCurrentLocation() async {
     bool serviceEnabled;
     LocationPermission permission;
 
-    // Check if location services are enabled
     serviceEnabled = await Geolocator.isLocationServiceEnabled();
     if (!serviceEnabled) {
-      print('Location services are disabled.');
       return null;
     }
 
     permission = await Geolocator.checkPermission();
     if (permission == LocationPermission.denied) {
       permission = await Geolocator.requestPermission();
-      if (permission == LocationPermission.denied) {
-        print('Location permissions are denied');
-        return null;
-      }
+      if (permission == LocationPermission.denied) return null;
     }
     
-    if (permission == LocationPermission.deniedForever) {
-      print('Location permissions are permanently denied');
-      return null;
-    }
+    if (permission == LocationPermission.deniedForever) return null;
 
+    // Use standard accuracy for speed check, high for route building
     _currentPosition = await Geolocator.getCurrentPosition(
       desiredAccuracy: LocationAccuracy.high
     );
+    
     return _currentPosition;
   }
+  
+  // Initialize city detection explicitly (lazy load)
+  Future<void> ensureCityDetected() async {
+    if (_currentCity != null) return; // Already detected
+    if (_currentPosition == null) await getCurrentLocation();
+    await _detectCurrentCity();
+  }
 
-  // Geocode address to coordinates
+  /// Detect current city using reverse geocoding
+  Future<void> _detectCurrentCity() async {
+    if (_currentPosition == null) return;
+    
+    try {
+      List<Placemark> placemarks = await placemarkFromCoordinates(
+        _currentPosition!.latitude,
+        _currentPosition!.longitude,
+      );
+      
+      if (placemarks.isNotEmpty) {
+        final place = placemarks.first;
+        _currentCity = place.locality ?? place.subAdministrativeArea ?? place.administrativeArea;
+        _currentCountry = place.country;
+        print("📍 Detected location: $_currentCity, $_currentCountry");
+      }
+    } catch (e) {
+      print("⚠️ Reverse geocoding failed: $e");
+    }
+  }
+
+  /// Get current city context string for search
+  String get cityContext {
+    if (_currentCity != null && _currentCountry != null) {
+      return "$_currentCity, $_currentCountry";
+    } else if (_currentCity != null) {
+      return _currentCity!;
+    }
+    return "";
+  }
+
+  // Smart geocode with Google Places for better address recognition
   Future<Location?> geocodeAddress(String address) async {
+    print("🔍 Geocoding: $address");
+    
+    // 1. Try Google Places Autocomplete first (better for landmarks and streets)
+    try {
+      final placeResult = await _searchWithPlaces(address);
+      if (placeResult != null) return placeResult;
+    } catch (e) {
+      print("⚠️ Places search failed: $e");
+    }
+    
+    // 2. Fallback to standard geocoding with city context
+    try {
+      String searchQuery = address;
+      if (cityContext.isNotEmpty && !address.toLowerCase().contains(_currentCity?.toLowerCase() ?? '')) {
+        searchQuery = "$address, $cityContext";
+      }
+      print("🔍 Trying geocode: $searchQuery");
+      
+      List<Location> locations = await locationFromAddress(searchQuery);
+      if (locations.isNotEmpty) {
+        print("✅ Found via geocoding: ${locations.first.latitude}, ${locations.first.longitude}");
+        return locations.first;
+      }
+    } catch (e) {
+      print('⚠️ Standard geocoding error: $e');
+    }
+    
+    // 3. Last resort - try without city context
     try {
       List<Location> locations = await locationFromAddress(address);
       if (locations.isNotEmpty) {
         return locations.first;
       }
     } catch (e) {
-      print('Geocoding error: $e');
+      print('❌ All geocoding failed: $e');
+    }
+    
+    return null;
+  }
+
+  /// Search using Google Places API for better landmark/street recognition
+  Future<Location?> _searchWithPlaces(String query) async {
+    if (_currentPosition == null) return null;
+    
+    final apiKey = Secrets.googleMapsApiKey;
+    
+    // Use Places Autocomplete with location bias
+    final url = Uri.parse(
+      'https://maps.googleapis.com/maps/api/place/autocomplete/json'
+      '?input=${Uri.encodeComponent(query)}'
+      '&location=${_currentPosition!.latitude},${_currentPosition!.longitude}'
+      '&radius=50000' // 50km radius
+      '&language=ru'
+      '&key=$apiKey'
+    );
+    
+    final response = await http.get(url).timeout(const Duration(seconds: 5));
+    
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      if (data['status'] == 'OK' && data['predictions'].isNotEmpty) {
+        final placeId = data['predictions'][0]['place_id'];
+        final description = data['predictions'][0]['description'];
+        print("📍 Found place: $description");
+        
+        // Get place details to get coordinates
+        return await _getPlaceDetails(placeId);
+      }
     }
     return null;
   }
 
-  // Build route using OpenRouteService (free alternative to Google)
-  // You can also use 2GIS API if you have access
+  /// Get coordinates from place ID
+  Future<Location?> _getPlaceDetails(String placeId) async {
+    final apiKey = Secrets.googleMapsApiKey;
+    
+    final url = Uri.parse(
+      'https://maps.googleapis.com/maps/api/place/details/json'
+      '?place_id=$placeId'
+      '&fields=geometry'
+      '&key=$apiKey'
+    );
+    
+    final response = await http.get(url).timeout(const Duration(seconds: 5));
+    
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      if (data['status'] == 'OK') {
+        final loc = data['result']['geometry']['location'];
+        return Location(
+          latitude: loc['lat'].toDouble(),
+          longitude: loc['lng'].toDouble(),
+          timestamp: DateTime.now(),
+        );
+      }
+    }
+    return null;
+  }
+
+  // Build route using OpenRouteService with Google Maps fallback
   Future<List<NavigationStep>> buildRoute(String destinationAddress) async {
+    print("🗺️ Building route to: $destinationAddress");
+    
     try {
       // Get current location
       final currentPos = await getCurrentLocation();
       if (currentPos == null) {
-        throw Exception('Cannot get current location');
+        throw Exception('Не удалось определить местоположение. Включите GPS.');
       }
+      
+      // Ensure we know the city for better local search context
+      await ensureCityDetected();
+      
+      print("📍 Current position: ${currentPos.latitude}, ${currentPos.longitude}");
 
       // Geocode destination
       final destination = await geocodeAddress(destinationAddress);
       if (destination == null) {
-        throw Exception('Cannot find destination: $destinationAddress');
+        throw Exception('Не удалось найти: $destinationAddress');
+      }
+      print("🎯 Destination: ${destination.latitude}, ${destination.longitude}");
+
+      // Try OpenRouteService first
+      try {
+        final steps = await _buildRouteORS(currentPos, destination);
+        if (steps.isNotEmpty) return steps;
+      } catch (e) {
+        print("⚠️ OpenRouteService failed: $e, trying Google...");
       }
 
-      // For now, we'll use OpenRouteService API (you need to get a free API key)
-      // Alternative: Use 2GIS API or Google Directions API
-      final apiKey = Secrets.openRouteServiceApiKey;
-      
-      final url = Uri.parse('https://api.openrouteservice.org/v2/directions/foot-walking');
-      
-      final response = await http.post(
-        url,
-        headers: {
-          'Authorization': apiKey,
-          'Content-Type': 'application/json',
-        },
-        body: jsonEncode({
-          'coordinates': [
-            [currentPos.longitude, currentPos.latitude],
-            [destination.longitude, destination.latitude],
-          ],
-          'instructions': true,
-          'language': 'ru',
-        }),
-      );
-
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        final steps = _parseRouteSteps(data);
-        _currentRoute = steps;
-        _currentStepIndex = 0;
-        return steps;
-      } else {
-        throw Exception('Failed to build route: ${response.statusCode}');
+      // Fallback to Google Directions API
+      try {
+        final steps = await _buildRouteGoogle(currentPos, destination);
+        if (steps.isNotEmpty) return steps;
+      } catch (e) {
+        print("⚠️ Google Directions failed: $e");
       }
+
+      throw Exception('Не удалось построить маршрут ни через один сервис');
     } catch (e) {
-      print('Route building error: $e');
+      print('❌ Route building error: $e');
       rethrow;
     }
+  }
+
+  Future<List<NavigationStep>> _buildRouteORS(Position currentPos, Location destination) async {
+    final apiKey = Secrets.openRouteServiceApiKey;
+    final url = Uri.parse('https://api.openrouteservice.org/v2/directions/foot-walking');
+    
+    final response = await http.post(
+      url,
+      headers: {
+        'Authorization': apiKey,
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({
+        'coordinates': [
+          [currentPos.longitude, currentPos.latitude],
+          [destination.longitude, destination.latitude],
+        ],
+        'instructions': true,
+        'language': 'ru',
+      }),
+    ).timeout(const Duration(seconds: 10));
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      final steps = _parseRouteSteps(data);
+      _currentRoute = steps;
+      _currentStepIndex = 0;
+      print("✅ ORS route built: ${steps.length} steps");
+      return steps;
+    } else {
+      throw Exception('ORS error: ${response.statusCode}');
+    }
+  }
+
+  Future<List<NavigationStep>> _buildRouteGoogle(Position currentPos, Location destination) async {
+    final apiKey = Secrets.googleMapsApiKey;
+    final url = Uri.parse(
+      'https://maps.googleapis.com/maps/api/directions/json'
+      '?origin=${currentPos.latitude},${currentPos.longitude}'
+      '&destination=${destination.latitude},${destination.longitude}'
+      '&mode=walking'
+      '&language=ru'
+      '&key=$apiKey'
+    );
+    
+    final response = await http.get(url).timeout(const Duration(seconds: 10));
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      if (data['status'] == 'OK') {
+        final steps = _parseGoogleSteps(data);
+        _currentRoute = steps;
+        _currentStepIndex = 0;
+        print("✅ Google route built: ${steps.length} steps");
+        return steps;
+      }
+    }
+    throw Exception('Google error: ${response.statusCode}');
+  }
+
+  List<NavigationStep> _parseGoogleSteps(Map<String, dynamic> data) {
+    final steps = <NavigationStep>[];
+    try {
+      final legs = data['routes'][0]['legs'] as List;
+      for (var leg in legs) {
+        final legSteps = leg['steps'] as List;
+        for (var step in legSteps) {
+          // Remove HTML tags from instructions
+          String instruction = step['html_instructions'] ?? '';
+          instruction = instruction.replaceAll(RegExp(r'<[^>]*>'), ' ').trim();
+          
+          steps.add(NavigationStep(
+            instruction: instruction,
+            distance: (step['distance']['value'] ?? 0).toDouble(),
+            duration: (step['duration']['value'] ?? 0).toDouble(),
+            type: step['maneuver'] ?? 'straight',
+            lat: step['start_location']['lat'].toDouble(),
+            lng: step['start_location']['lng'].toDouble(),
+          ));
+        }
+      }
+    } catch (e) {
+      print('Error parsing Google steps: $e');
+    }
+    return steps;
   }
 
   List<NavigationStep> _parseRouteSteps(Map<String, dynamic> data) {
@@ -208,8 +410,13 @@ class NavigationService {
   }
 
   // Check if we should move to next step based on location
-  Future<bool> checkStepProgress() async {
-    final currentPos = await getCurrentLocation();
+  // Optional position param avoids re-fetching location if we already have it from stream
+  Future<bool> checkStepProgress({Position? position}) async {
+    final currentPos = position ?? await getCurrentLocation();
+    
+    // Update internal position state
+    _currentPosition = currentPos;
+    
     if (currentPos == null || _currentRoute.isEmpty || _currentStepIndex >= _currentRoute.length - 1) return false;
     
     // Check distance to NEXT step waypoint
@@ -221,8 +428,8 @@ class NavigationService {
       nextStep.lng
     );
 
-    // If within 10 meters of the next step waypoint, advance
-    if (distanceToNext < 10) {
+    // If within 15 meters (increased tolerance) of the next step waypoint, advance
+    if (distanceToNext < 15) {
       _currentStepIndex++;
       return true;
     }

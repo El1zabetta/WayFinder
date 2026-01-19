@@ -150,8 +150,8 @@ class EnhancedSpeechService {
       if (!_isListening) return false;
       
       final silenceDuration = DateTime.now().difference(lastSoundTime);
-      if (silenceDuration.inSeconds >= 3) {
-        print("🤫 [SPEECH] Silence detected (3s). Forcing stop...");
+      if (silenceDuration.inSeconds >= 5) { // Increased from 3s to 5s for thoughtful speech
+        print("🤫 [SPEECH] Silence detected (5s). Forcing stop...");
         if (_speech.lastRecognizedWords.isNotEmpty) {
           _processRecognizedText(_speech.lastRecognizedWords, extractCommand);
         }

@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:animate_do/animate_do.dart';
 import '../services/haptic_service.dart';
 import '../widgets/glass_container.dart';
 import '../services/auth_service.dart';
@@ -54,127 +53,100 @@ class _PremiumSettingsScreenState extends State<PremiumSettingsScreen> {
               const SizedBox(height: 20),
               
               // Header
-              FadeInDown(
-                duration: const Duration(milliseconds: 600),
-                child: Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        gradient: const LinearGradient(
-                          colors: [Color(0xFF00D4FF), Color(0xFF0066FF)],
-                        ),
-                        borderRadius: BorderRadius.circular(16),
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFF00D4FF), Color(0xFF0066FF)],
                       ),
-                      child: const Icon(Icons.settings, color: Colors.white, size: 32),
+                      borderRadius: BorderRadius.circular(16),
                     ),
-                    const SizedBox(width: 16),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          l10n.settings,
-                          style: const TextStyle(
-                            fontSize: 32,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                          ),
+                    child: const Icon(Icons.settings, color: Colors.white, size: 32),
+                  ),
+                  const SizedBox(width: 16),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        l10n.settings,
+                        style: const TextStyle(
+                          fontSize: 32,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
                         ),
-                        const Text(
-                          'Customize your experience',
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: Colors.white54,
-                          ),
+                      ),
+                      const Text(
+                        'Customize your experience',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.white54,
                         ),
-                      ],
-                    ),
-                  ],
-                ),
+                      ),
+                    ],
+                  ),
+                ],
               ),
               
               const SizedBox(height: 40),
               
               // User Profile Section
-              FadeInUp(
-                duration: const Duration(milliseconds: 600),
-                delay: const Duration(milliseconds: 100),
-                child: _buildUserProfile(context),
-              ),
+              _buildUserProfile(context),
               
               const SizedBox(height: 30),
               
               // Voice Settings
-              FadeInUp(
-                duration: const Duration(milliseconds: 600),
-                delay: const Duration(milliseconds: 200),
-                child: _buildSection(
-                  'Voice & Audio',
-                  Icons.mic,
-                  [
-                    _buildWakeWordToggle(l10n),
-                    _buildVoiceSpeedSlider(),
-                    _buildSoundEffectsToggle(),
-                  ],
-                ),
+              _buildSection(
+                'Voice & Audio',
+                Icons.mic,
+                [
+                  _buildWakeWordToggle(l10n),
+                  _buildVoiceSpeedSlider(),
+                  _buildSoundEffectsToggle(),
+                ],
               ),
               
               const SizedBox(height: 30),
               
               // Language Settings
-              FadeInUp(
-                duration: const Duration(milliseconds: 600),
-                delay: const Duration(milliseconds: 300),
-                child: _buildSection(
-                  'Language / Язык',
-                  Icons.language,
-                  [
-                    _buildLanguageOption('🇺🇸 English', const Locale('en')),
-                    _buildLanguageOption('🇷🇺 Русский', const Locale('ru')),
-                    _buildLanguageOption('🇰🇬 Кыргызча', const Locale('ky')),
-                  ],
-                ),
+              _buildSection(
+                'Language / Язык',
+                Icons.language,
+                [
+                  _buildLanguageOption('🇺🇸 English', const Locale('en')),
+                  _buildLanguageOption('🇷🇺 Русский', const Locale('ru')),
+                  _buildLanguageOption('🇰🇬 Кыргызча', const Locale('ky')),
+                ],
               ),
               
               const SizedBox(height: 30),
               
               // Notifications
-              FadeInUp(
-                duration: const Duration(milliseconds: 600),
-                delay: const Duration(milliseconds: 400),
-                child: _buildSection(
-                  'Notifications',
-                  Icons.notifications,
-                  [
-                    _buildNotificationsToggle(),
-                  ],
-                ),
+              _buildSection(
+                'Notifications',
+                Icons.notifications,
+                [
+                  _buildNotificationsToggle(),
+                ],
               ),
               
               const SizedBox(height: 30),
               
               // Data & Privacy
-              FadeInUp(
-                duration: const Duration(milliseconds: 600),
-                delay: const Duration(milliseconds: 500),
-                child: _buildSection(
-                  'Data & Privacy',
-                  Icons.security,
-                  [
-                    _buildClearHistoryButton(context),
-                    _buildPrivacyPolicyButton(),
-                  ],
-                ),
+              _buildSection(
+                'Data & Privacy',
+                Icons.security,
+                [
+                  _buildClearHistoryButton(context),
+                  _buildPrivacyPolicyButton(),
+                ],
               ),
               
               const SizedBox(height: 30),
               
               // About
-              FadeInUp(
-                duration: const Duration(milliseconds: 600),
-                delay: const Duration(milliseconds: 600),
-                child: _buildAboutSection(),
-              ),
+              _buildAboutSection(),
               
               const SizedBox(height: 100),
             ],

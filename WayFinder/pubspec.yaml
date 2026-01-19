@@ -28,6 +28,7 @@ dependencies:
   google_sign_in: ^6.1.6
   firebase_core: ^2.24.2
   firebase_auth: ^4.15.3
+  flutter_tts: ^4.2.0
   
   # Navigation
   geolocator: ^13.0.2
@@ -46,6 +47,8 @@ dependencies:
   vibration: ^3.1.5                  # Haptic feedback (Upgraded to fix build)
   flutter_animate: ^4.5.0            # Advanced animations
   rive: ^0.13.0                      # Interactive animations
+  flutter_compass: ^0.8.1
+  battery_plus: ^6.0.0             # Battery monitoring for power optimization
 
 dev_dependencies:
   flutter_test:

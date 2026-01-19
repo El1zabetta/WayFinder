@@ -24,7 +24,7 @@ class _AITypingIndicatorState extends State<AITypingIndicator>
   void initState() {
     super.initState();
     _controller = AnimationController(
-      duration: const Duration(milliseconds: 1400),
+      duration: const Duration(milliseconds: 600),
       vsync: this,
     )..repeat();
   }

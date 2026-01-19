@@ -27,7 +27,7 @@ class _VoiceWaveAnimationState extends State<VoiceWaveAnimation>
   void initState() {
     super.initState();
     _controller = AnimationController(
-      duration: const Duration(milliseconds: 1500),
+      duration: const Duration(milliseconds: 800),
       vsync: this,
     );
 

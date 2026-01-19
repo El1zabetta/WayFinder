@@ -4,9 +4,11 @@
 
 list(APPEND FLUTTER_PLUGIN_LIST
   audioplayers_windows
+  battery_plus
   file_selector_windows
   firebase_auth
   firebase_core
+  flutter_tts
   geolocator_windows
   permission_handler_windows
   record_windows

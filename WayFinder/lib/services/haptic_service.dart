@@ -96,4 +96,45 @@ class HapticService {
       await Vibration.vibrate(pattern: [0, 100, 50, 100, 50, 300], intensities: [0, 100, 0, 150, 0, 255]);
     }
   }
+
+  /// Directional haptic for LEFT turn
+  static Future<void> leftTurn() async {
+    if (await Vibration.hasVibrator() ?? false) {
+      // Two quick pulses (left pattern)
+      await Vibration.vibrate(duration: 100);
+      await Future.delayed(const Duration(milliseconds: 80));
+      await Vibration.vibrate(duration: 50);
+    }
+  }
+
+  /// Directional haptic for RIGHT turn
+  static Future<void> rightTurn() async {
+    if (await Vibration.hasVibrator() ?? false) {
+      // One short, one long (right pattern)
+      await Vibration.vibrate(duration: 50);
+      await Future.delayed(const Duration(milliseconds: 80));
+      await Vibration.vibrate(duration: 100);
+    }
+  }
+
+  /// Haptic for going straight
+  static Future<void> goStraight() async {
+    if (await Vibration.hasVibrator() ?? false) {
+      await Vibration.vibrate(duration: 150);
+    }
+  }
+
+  /// Gentle warning - attention needed but not urgent
+  static Future<void> gentleWarning() async {
+    if (await Vibration.hasVibrator() ?? false) {
+      await Vibration.vibrate(pattern: [0, 50, 100, 50, 100, 50], intensities: [0, 128, 0, 128, 0, 128]);
+    }
+  }
+
+  /// Confirmation haptic - action completed
+  static Future<void> confirmation() async {
+    if (await Vibration.hasVibrator() ?? false) {
+      await Vibration.vibrate(duration: 40);
+    }
+  }
 }

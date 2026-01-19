@@ -1,4 +1,6 @@
 import 'dart:convert';
+import 'dart:io';
+import 'package:http/io_client.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -7,11 +9,17 @@ import 'conversation_manager.dart';
 /// Advanced Vision API Service with Intelligent Caching and Optimization
 class AdvancedVisionApiService {
   static const String _defaultUrl = "https://tristian-weightier-loblolly.ngrok-free.dev";
-  static const Duration _timeout = Duration(seconds: 60);
+  static const Duration _timeout = Duration(seconds: 10); // FAST: 10s timeout
+  static const int _imageQuality = 25; // HIGH compression for speed
   
   // Cache for quick responses
   final Map<String, CachedResponse> _responseCache = {};
   final ConversationManager _conversationManager = ConversationManager();
+
+  // Custom Client
+  static final http.Client _client = IOClient(
+    HttpClient()..badCertificateCallback = (X509Certificate cert, String host, int port) => true
+  );
 
   Future<String> getBaseUrl() async {
     final prefs = await SharedPreferences.getInstance();
@@ -35,6 +43,15 @@ class AdvancedVisionApiService {
     print("🤖 [AI] Mode: $mode, Text: $text");
     
     final startTime = DateTime.now();
+    
+    // INSTANT OFFLINE RESPONSES for common queries (no network needed!)
+    if (image == null && audioPath == null && text.isNotEmpty) {
+      final offlineResponse = _getOfflineResponse(text);
+      if (offlineResponse != null) {
+        print("⚡ [AI] Instant offline response!");
+        return offlineResponse;
+      }
+    }
     
     // Check cache for text-only queries
     if (useCache && image == null && audioPath == null && text.isNotEmpty) {
@@ -188,9 +205,10 @@ Response guidelines:
 - Provide spatial information (left, right, ahead, distance)
 - Alert to potential hazards immediately
 - Confirm understanding before complex actions
-- Use metric units (meters, kilometers)
-
-Remember: You are the user's eyes. Be accurate, helpful, and trustworthy.''';
+192: - Use metric units (meters, kilometers)
+193: - Do NOT use emojis.
+194: 
+195: Remember: You are the user's eyes. Be accurate, helpful, and trustworthy.''';
 
       case 'vision':
         return '''You are WayFinder's Vision AI, specialized in describing visual environments for visually impaired users.
@@ -209,9 +227,12 @@ Format your responses:
 - Describe colors and text when relevant
 - Be specific about object locations
 
-Example: "CAUTION: Steps ahead at 2 meters. Person approaching from your right at 5 meters. Clear path to your left. Bright sunlight, good visibility."
-
-Be the user's trusted eyes.''';
+213: 
+214: Example: "CAUTION: Steps ahead at 2 meters. Person approaching from your right at 5 meters. Clear path to your left. Bright sunlight, good visibility."
+215: 
+216: Do NOT use emojis.
+217: 
+218: Be the user's trusted eyes.''';
 
       case 'guide':
         return '''You are WayFinder's Ultimate Safety AI. 
@@ -282,6 +303,8 @@ Direction format:
 
 Example: "Head North for 50 meters. At the traffic light, turn right onto Main Street. Continue for 200 meters. Your destination will be on the left."
 
+Do NOT use emojis.
+
 Guide users safely to their destination.''';
   }
 
@@ -311,6 +334,49 @@ Guide users safely to their destination.''';
       } else {
         _responseCache.remove(key);
       }
+    }
+    
+    return null;
+  }
+
+  /// Instant offline responses for common interactions
+  AIResponse? _getOfflineResponse(String text) {
+    final lower = text.toLowerCase().trim();
+    
+    // Greetings
+    if (lower == 'привет' || lower == 'здравствуй' || lower == 'здравствуйте' || lower == 'hello' || lower == 'hi') {
+      return AIResponse(
+        message: "Привет! Я готов помочь. Скажите 'Что передо мной', чтобы описать сцену, или 'Построй маршрут', чтобы пойти куда-нибудь.",
+        confidence: 1.0,
+        hasAudio: false,
+      );
+    }
+    
+    // Gratitude
+    if (lower.contains('спасибо') || lower.contains('благодарю') || lower.contains('thank')) {
+      return AIResponse(
+        message: "Пожалуйста! Обращайтесь в любое время.",
+        confidence: 1.0,
+        hasAudio: false,
+      );
+    }
+    
+    // Status
+    if (lower == 'как дела' || lower == 'как ты' || lower == 'how are you') {
+      return AIResponse(
+        message: "Всё отлично! Системы работают в штатном режиме. Батарея и GPS в норме. Чем могу помочь?",
+        confidence: 1.0,
+        hasAudio: false,
+      );
+    }
+
+    // Identity
+    if (lower == 'кто ты' || lower == 'как тебя зовут' || lower == 'who are you') {
+      return AIResponse(
+        message: "Я WayFinder, ваш персональный визуальный помощник. Я помогаю видеть мир через камеру вашего телефона.",
+        confidence: 1.0,
+        hasAudio: false,
+      );
     }
     
     return null;

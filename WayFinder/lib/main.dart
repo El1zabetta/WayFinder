@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:async'; // Added for StreamSubscription
 import 'dart:io';
 import 'dart:math';
 import 'package:flutter/material.dart';
@@ -9,15 +10,18 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:record/record.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:animate_do/animate_do.dart';
+import 'package:flutter_compass/flutter_compass.dart'; // Added for Compass
 
 import 'theme/app_theme.dart';
 import 'services/advanced_ai_service.dart';
+import 'services/spatial_audio_service.dart'; // Added for Spatial Audio
 import 'services/porcupine_service.dart';
 import 'services/navigation_service.dart';
 import 'services/chat_history_service.dart';
 import 'services/haptic_service.dart';
 import 'services/enhanced_speech_service.dart';
+import 'services/welcome_voice_service.dart';
+import 'services/performance_service.dart';
 import 'screens/chat_screen.dart';
 import 'screens/vision_mode.dart';
 import 'screens/splash_screen.dart';
@@ -25,7 +29,6 @@ import 'screens/onboarding_screen.dart';
 import 'screens/premium_settings_screen.dart';
 import 'widgets/glass_container.dart';
 import 'widgets/premium_widgets.dart';
-import 'widgets/voice_animations.dart';
 import 'widgets/ai_animations.dart'; // Added for typing indicators
 
 import 'package:firebase_core/firebase_core.dart';
@@ -35,8 +38,18 @@ import 'screens/login_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  HttpOverrides.global = MyHttpOverrides(); // Fix HandshakeException
   await Firebase.initializeApp();
   runApp(const VisionApp());
+}
+
+// Bypass SSL certification for dev
+ class MyHttpOverrides extends HttpOverrides{
+  @override
+  HttpClient createHttpClient(SecurityContext? context){
+    return super.createHttpClient(context)
+      ..badCertificateCallback = (X509Certificate cert, String host, int port)=> true;
+  }
 }
 
 class VisionApp extends StatefulWidget {
@@ -139,14 +152,17 @@ class _MainNavScreenState extends State<MainNavScreen> with WidgetsBindingObserv
   
    // Advanced Features
   final _spatialAudio = SpatialAudioService();
+  final _welcomeVoice = WelcomeVoiceService();
   double _currentHeading = 0;
   StreamSubscription? _compassSubscription;
+  StreamSubscription? _navigationSubscription;
 
 
   // State
   int _currentIndex = 0;
   bool _isRecording = false;
   bool _isProcessing = false;
+  bool _isSpeaking = false; // Track TTS playback
   List<ChatMessage> _messages = [];
   String _visionStatus = "";
   String _partialSpeechText = "";
@@ -165,6 +181,7 @@ class _MainNavScreenState extends State<MainNavScreen> with WidgetsBindingObserv
     
     _initHardware();
     _loadChatHistory();
+    _playWelcomeIfFirstLaunch();
     
     _porcupineService = PorcupineWakeWordService(
       onWakeWordDetected: _handlePorcupineWake,
@@ -209,6 +226,23 @@ class _MainNavScreenState extends State<MainNavScreen> with WidgetsBindingObserv
     _initCompass();
   }
 
+  /// Play welcome voice guide for first-time users (accessibility feature)
+  Future<void> _playWelcomeIfFirstLaunch() async {
+    // Small delay to let the app fully initialize
+    await Future.delayed(const Duration(milliseconds: 500));
+    final isFirstLaunch = await _welcomeVoice.checkAndPlayWelcome();
+    if (isFirstLaunch && mounted) {
+      // Show a subtle indicator that welcome is playing
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('🎧 Playing welcome guide...'),
+          backgroundColor: Color(0xFF00D4FF),
+          duration: Duration(seconds: 3),
+        ),
+      );
+    }
+  }
+
   void _initCompass() {
     _compassSubscription = FlutterCompass.events?.listen((event) {
       setState(() {
@@ -228,6 +262,12 @@ class _MainNavScreenState extends State<MainNavScreen> with WidgetsBindingObserv
     _porcupineService.dispose();
     _speechService.dispose();
     _compassSubscription?.cancel();
+    _navigationSubscription?.cancel(); // Clean up navigation stream
+    _welcomeVoice.dispose();
+    
+    // Clean up cache on exit
+    PerformanceService().forceCleanup();
+    
     super.dispose();
   }
 
@@ -246,11 +286,16 @@ class _MainNavScreenState extends State<MainNavScreen> with WidgetsBindingObserv
       _disposeCamera();
       _porcupineService.stopListening();
     } else if (state == AppLifecycleState.resumed) {
-      _initCamera();
-      // Restart wake word on resume if enabled
-      if (_wakeWordEnabled && !_isRecording && !_isProcessing) {
-        _porcupineService.startListening();
-      }
+      // Add delay before reinitializing camera to prevent threading conflicts
+      Future.delayed(const Duration(milliseconds: 1200), () {
+        if (mounted) {
+          _initCamera();
+          // Restart wake word on resume if enabled
+          if (_wakeWordEnabled && !_isRecording && !_isProcessing) {
+            _porcupineService.startListening();
+          }
+        }
+      });
     }
   }
 
@@ -260,7 +305,7 @@ class _MainNavScreenState extends State<MainNavScreen> with WidgetsBindingObserv
       try {
         _cameraController = CameraController(
           cameras.first, 
-          ResolutionPreset.high, // Улучшаем качество камеры
+          ResolutionPreset.medium, // OPTIMIZED: Medium (720p) is much faster for AI uploads than High
           enableAudio: false,
           imageFormatGroup: ImageFormatGroup.jpeg,
         );
@@ -297,13 +342,19 @@ class _MainNavScreenState extends State<MainNavScreen> with WidgetsBindingObserv
 
   Future<void> _startVoiceOnboarding() async {
     const welcomeText = """
-Привет! Я WayFinder — твой новый виртуальный поводырь и помощник. 
-Я создан, чтобы ты мог чувствовать себя увереннее:
-1. Я могу строить маршруты и вести тебя за руку, подсказывая повороты.
-2. Мои 'глаза' через камеру постоянно следят за путем и предупредят тебя об опасностях: люках, препятствиях или красном свете светофора.
-3. Ты можешь просто спросить 'что я вижу?' или 'что передо мной?', и я опишу обстановку.
+Hello! I am WayFinder, your AI assistant for the visually impaired.
 
-Давай быстро настроимся. Какой язык тебе удобнее - русский или английский?
+Here is what I can do for you:
+1. Navigation: I can build routes and guide you step by step with voice directions.
+2. Vision: My camera constantly watches the path ahead and warns you about obstacles, open manholes, traffic lights, and other hazards.
+3. Description: Just ask 'What do I see?' or 'What is in front of me?' and I will describe your surroundings.
+4. Smart Search: Say 'Find the door' or 'Where is the exit?' and I will help you locate objects.
+
+You can activate me anytime by saying 'WayFinder' followed by your command.
+
+To change language, say 'Change language to Russian' or 'Switch to English'.
+
+Let's get started!
 """;
     
     final aiMsg = ChatMessage(
@@ -343,7 +394,7 @@ class _MainNavScreenState extends State<MainNavScreen> with WidgetsBindingObserv
 
   void _addInitialMessage() {
      final msg = ChatMessage(
-       text: "Привет! Я WayFinder, ваш голосовой помощник. Скажите 'WayFinder' и задайте вопрос, или нажмите кнопку микрофона.", 
+       text: "Hello! I'm WayFinder, your voice assistant. Say 'WayFinder' and ask a question, or tap the microphone button.", 
        isUser: false, 
        timestamp: DateTime.now()
      );
@@ -355,7 +406,15 @@ class _MainNavScreenState extends State<MainNavScreen> with WidgetsBindingObserv
 
   Future<void> _initHardware() async {
     await [Permission.camera, Permission.microphone, Permission.location].request();
-    // Re-init camera logic...
+    
+    // Initialize performance monitoring (cache cleanup, battery)
+    await PerformanceService().initialize();
+    
+    // Warn user if battery is critically low
+    if (PerformanceService().shouldWarnLowBattery) {
+      _welcomeVoice.speak("Внимание! Заряд батареи очень низкий. Рекомендую подключить зарядку.");
+    }
+    
     await _initCamera();
   }
 
@@ -464,17 +523,136 @@ class _MainNavScreenState extends State<MainNavScreen> with WidgetsBindingObserv
     
     // 1. Check for Mode Switch Commands
     if (_processModeCommands(lowerText)) return;
-
-    // 2. Check for Language selection (during onboarding)
-    if (lowerText.contains('русский') || lowerText.contains('russian')) {
-       widget.onLocaleChange(const Locale('ru'));
-       _speak("Выбран русский язык. Теперь мы можем зарегистрироваться. Хочешь зайти через Google аккаунт? Просто скажи 'да' или 'зарегистрируй меня'.");
-       return;
-    } else if (lowerText.contains('английский') || lowerText.contains('english')) {
-       widget.onLocaleChange(const Locale('en'));
-       _speak("English language selected. Now we can register. Would you like to sign in with Google? Just say 'yes' or 'register me'.");
-       return;
+    
+    // 2. Check for STOP command - stops TTS playback
+    if (lowerText.contains('stop') || lowerText.contains('стоп') || lowerText.contains('хватит') || lowerText.contains('замолчи')) {
+      await _stopSpeaking();
+      HapticService.mediumImpact();
+      return;
     }
+    
+    // 3. Check for Help Command - plays voice guide
+    if (lowerText.contains('help') || lowerText.contains('помощь') || lowerText.contains('что ты умеешь')) {
+      _welcomeVoice.speakHelp();
+      HapticService.mediumImpact();
+      return;
+    }
+
+    // 4. QUICK COMMAND: "Что передо мной" - instant scene analysis
+    if (lowerText.contains('что передо мной') || 
+        lowerText.contains('что я вижу') || 
+        lowerText.contains('опиши') ||
+        lowerText.contains("what's in front") ||
+        lowerText.contains('what do i see') ||
+        lowerText.contains('describe')) {
+      HapticService.mediumImpact();
+      _speak("Анализирую...", useLocalOnly: true);
+      await _processRequest(text: "Опиши что ты видишь кратко и чётко", mode: 'vision');
+      return;
+    }
+
+    // 5. QUICK COMMAND: Battery status
+    if (lowerText.contains('батарея') || lowerText.contains('заряд') || lowerText.contains('battery')) {
+      final level = PerformanceService().batteryLevel;
+      _speak("Уровень заряда батареи: $level процентов.", useLocalOnly: true);
+      HapticService.lightImpact();
+      return;
+    }
+
+    // 6. QUICK COMMAND: Read text in front of camera
+    if (lowerText.contains('прочитай') || lowerText.contains('read') || lowerText.contains('текст')) {
+      HapticService.mediumImpact();
+      _speak("Читаю текст...", useLocalOnly: true);
+      await _processRequest(text: "Прочитай весь текст на изображении вслух", mode: 'read');
+      return;
+    }
+
+    // 7. QUICK COMMAND: Current time
+    if (lowerText.contains('время') || lowerText.contains('который час') || lowerText.contains('time') || lowerText.contains('what time')) {
+      final now = DateTime.now();
+      final hour = now.hour;
+      final minute = now.minute.toString().padLeft(2, '0');
+      _speak("Сейчас $hour часов $minute минут.", useLocalOnly: true);
+      HapticService.lightImpact();
+      return;
+    }
+
+    // 8. QUICK COMMAND: "Где я" - current location
+    if (lowerText.contains('где я') || lowerText.contains('мое местоположение') || lowerText.contains('where am i') || lowerText.contains('my location')) {
+      HapticService.mediumImpact();
+      _speak("Определяю местоположение...", useLocalOnly: true);
+      try {
+        final pos = await _navigationService.getCurrentLocation();
+        if (pos != null) {
+          final city = _navigationService.cityContext;
+          if (city.isNotEmpty) {
+            _speak("Вы находитесь в $city. Координаты: ${pos.latitude.toStringAsFixed(4)}, ${pos.longitude.toStringAsFixed(4)}.", useLocalOnly: true);
+          } else {
+            _speak("Координаты: ${pos.latitude.toStringAsFixed(4)}, ${pos.longitude.toStringAsFixed(4)}.", useLocalOnly: true);
+          }
+        } else {
+          _speak("Не удалось определить местоположение. Проверьте GPS.", useLocalOnly: true);
+        }
+      } catch (e) {
+        _speak("Ошибка определения местоположения.", useLocalOnly: true);
+      }
+      return;
+    }
+
+    // 9. QUICK COMMAND: "Повтори" - repeat last navigation instruction
+    if (lowerText.contains('повтори') || lowerText.contains('repeat') || lowerText.contains('еще раз') || lowerText.contains('again')) {
+      if (_isNavigating && _routeSteps.isNotEmpty) {
+        final instruction = _navigationService.getCurrentInstruction();
+        _speak(instruction, useLocalOnly: true);
+        HapticService.lightImpact();
+      } else {
+        _speak("Нет активной навигации для повтора.", useLocalOnly: true);
+      }
+      return;
+    }
+
+    // 10. EMERGENCY: "SOS" / "Помогите"
+    if (lowerText.contains('sos') || lowerText.contains('помогите') || lowerText.contains('emergency') || lowerText.contains('экстренно')) {
+      HapticService.emergencyWarning();
+      _speak("Режим экстренной помощи. Сейчас опишу ваше окружение максимально подробно.", useLocalOnly: true);
+      await _processRequest(text: "СРОЧНО: Опиши всё вокруг максимально подробно. Укажи людей, выходы, опасности, ориентиры. Это экстренная ситуация для слепого человека.", mode: 'vision');
+      return;
+    }
+
+    // 11. QUICK COMMAND: "Какой цвет" - color identification
+    if (lowerText.contains('цвет') || lowerText.contains('какого цвета') || lowerText.contains('color') || lowerText.contains('what color')) {
+      HapticService.mediumImpact();
+      _speak("Определяю цвет...", useLocalOnly: true);
+      await _processRequest(text: "Назови основной цвет того что ты видишь. Ответь одним-двумя словами, например: красный, тёмно-синий, бежевый.", mode: 'vision');
+      return;
+    }
+
+    // 12. QUICK COMMAND: "Деньги" - currency recognition
+    if (lowerText.contains('деньги') || lowerText.contains('купюра') || lowerText.contains('money') || lowerText.contains('банкнот')) {
+      HapticService.mediumImpact();
+      _speak("Определяю номинал...", useLocalOnly: true);
+      await _processRequest(text: "Определи номинал и валюту купюры или монеты на изображении. Ответь кратко, например: 1000 сом, 500 рублей, 20 долларов.", mode: 'vision');
+      return;
+    }
+
+    // 13. QUICK COMMAND: "Светофор" - traffic light status
+    if (lowerText.contains('светофор') || lowerText.contains('traffic light') || lowerText.contains('можно идти') || lowerText.contains('перейти')) {
+      HapticService.mediumImpact();
+      _speak("Проверяю светофор...", useLocalOnly: true);
+      await _processRequest(text: "Посмотри на светофор. Какой сейчас сигнал для пешеходов? Можно ли безопасно переходить дорогу? Ответь кратко и чётко.", mode: 'vision');
+      return;
+    }
+
+    // 14. QUICK COMMAND: "Дверь" - find door/entrance
+    if (lowerText.contains('дверь') || lowerText.contains('вход') || lowerText.contains('door') || lowerText.contains('entrance') || lowerText.contains('выход')) {
+      HapticService.mediumImpact();
+      _speak("Ищу вход...", useLocalOnly: true);
+      await _processRequest(text: "Найди дверь, вход или выход на изображении. Опиши где она находится относительно центра кадра (слева, справа, прямо) и на каком расстоянии примерно.", mode: 'vision');
+      return;
+    }
+
+    // 15. Check for Language Change Commands (voice activated)
+    if (_processLanguageCommands(lowerText)) return;
 
     // 3. Check for Registration/Login Commands
     if (lowerText.contains('регистрация') || 
@@ -487,7 +665,13 @@ class _MainNavScreenState extends State<MainNavScreen> with WidgetsBindingObserv
       return;
     }
 
-    // 4. Check for Object Search
+    // 4. FAST-TRACK: Direct navigation commands (bypass chat)
+    if (_isNavigationRequest(lowerText)) {
+      await _extractAndBuildRoute(text);
+      return;
+    }
+
+    // 5. Check for Object Search
     if (lowerText.contains('найди') || lowerText.contains('где') || lowerText.contains('find')) {
        final query = lowerText.replaceAll('найди', '').replaceAll('где', '').replaceAll('find', '').trim();
        _speak("Ищу $query. Пожалуйста, медленно поводите камерой вокруг.");
@@ -512,13 +696,58 @@ class _MainNavScreenState extends State<MainNavScreen> with WidgetsBindingObserv
   bool _processModeCommands(String text) {
     if (text.contains('режим навигатора') || text.contains('navigator mode')) {
       setState(() => _currentIndex = TAB_VISION);
-      _speak("Переключаюсь в режим навигатора. Камера активна.");
+      _speak("Switching to navigator mode. Camera active.");
       return true;
-    } else if (text.contains('стандартный режим') || text.contains('чат') || text.contains('standard mode')) {
+    } else if (text.contains('стандартный режим') || text.contains('чат') || text.contains('standard mode') || text.contains('chat mode')) {
       setState(() => _currentIndex = TAB_CHAT);
-      _speak("Переключено в стандартный режим чата.");
+      _speak("Switched to standard chat mode.");
       return true;
     }
+    return false;
+  }
+
+  // Voice-activated language switching
+  bool _processLanguageCommands(String text) {
+    // English commands to switch to Russian
+    if (text.contains('change language to russian') || 
+        text.contains('switch to russian') ||
+        text.contains('russian language') ||
+        text.contains('set language russian')) {
+      widget.onLocaleChange(const Locale('ru'));
+      _speak("Язык изменён на русский. Теперь я буду отвечать по-русски.");
+      return true;
+    }
+    
+    // English commands to switch to English
+    if (text.contains('change language to english') || 
+        text.contains('switch to english') ||
+        text.contains('english language') ||
+        text.contains('set language english')) {
+      widget.onLocaleChange(const Locale('en'));
+      _speak("Language changed to English. I will now respond in English.");
+      return true;
+    }
+    
+    // Russian commands to switch to Russian
+    if (text.contains('поменяй язык на русский') || 
+        text.contains('переключи на русский') ||
+        text.contains('русский язык') ||
+        text.contains('говори по русски')) {
+      widget.onLocaleChange(const Locale('ru'));
+      _speak("Язык изменён на русский.");
+      return true;
+    }
+    
+    // Russian commands to switch to English
+    if (text.contains('поменяй язык на английский') || 
+        text.contains('переключи на английский') ||
+        text.contains('английский язык') ||
+        text.contains('говори по английски')) {
+      widget.onLocaleChange(const Locale('en'));
+      _speak("Language changed to English.");
+      return true;
+    }
+    
     return false;
   }
 
@@ -597,7 +826,15 @@ class _MainNavScreenState extends State<MainNavScreen> with WidgetsBindingObserv
   }
 
   bool _isNavigationRequest(String text) {
-    final navKeywords = ['как дойти', 'как доехать', 'маршрут', 'навигация', 'проведи', 'как пройти'];
+    final navKeywords = [
+      // Russian
+      'как дойти', 'как доехать', 'маршрут до', 'построй маршрут', 'проложи маршрут',
+      'веди меня', 'как пройти', 'отведи меня', 'навигация до', 'дорогу до',
+      'как добраться', 'проведи до', 'покажи путь', 'путь до',
+      // English
+      'navigate to', 'route to', 'how to get to', 'directions to', 'take me to',
+      'guide me to', 'walk me to', 'lead me to', 'show me the way to',
+    ];
     final lowerText = text.toLowerCase();
     return navKeywords.any((keyword) => lowerText.contains(keyword));
   }
@@ -647,55 +884,140 @@ class _MainNavScreenState extends State<MainNavScreen> with WidgetsBindingObserv
     }
   }
 
+  /// Extract destination from voice command and build navigation route
   Future<void> _extractAndBuildRoute(String text) async {
-    // Basic extraction - in production, the AI would give us coordinates or a clean address
-    final cleanDest = text
-      .replaceAll('построй маршрут до', '')
-      .replaceAll('как пройти до', '')
-      .replaceAll('как дойти до', '')
-      .trim();
+    // Comprehensive pattern removal for destination extraction
+    final patternsToRemove = [
+      // Russian patterns
+      'построй маршрут до', 'проложи маршрут до', 'маршрут до', 'веди меня до',
+      'как пройти до', 'как дойти до', 'как доехать до', 'отведи меня до',
+      'навигация до', 'проведи до', 'покажи путь до', 'путь до', 'дорогу до',
+      'как добраться до', 'веди меня к', 'отведи к', 'проведи к', 'веди к',
+      'построй маршрут к', 'маршрут к', 'дорогу к', 'путь к',
+      'построй маршрут', 'проложи маршрут', 'веди меня', 'отведи меня',
+      // English patterns  
+      'navigate to', 'route to', 'directions to', 'take me to', 'guide me to',
+      'walk me to', 'lead me to', 'how to get to', 'show me the way to',
+      'get directions to', 'find route to',
+    ];
     
-    if (cleanDest.isEmpty) return;
+    String cleanDest = text.toLowerCase();
+    for (final pattern in patternsToRemove) {
+      cleanDest = cleanDest.replaceAll(pattern, '');
+    }
+    cleanDest = cleanDest.trim();
+    
+    if (cleanDest.isEmpty) {
+      _speak("Пожалуйста, укажите место назначения. Например: построй маршрут до филармонии.");
+      return;
+    }
+
+    // City context is now handled dynamically in NavigationService
+    // based on user's actual GPS location
+    final searchQuery = cleanDest;
 
     try {
-      _speak("Строю маршрут до $cleanDest. Пожалуйста, подождите.");
+      setState(() => _isProcessing = true);
+      _speak("Строю маршрут до $cleanDest. Подождите.");
       
-      final steps = await _navigationService.buildRoute(cleanDest);
+      final steps = await _navigationService.buildRoute(searchQuery);
+      
+      if (steps.isEmpty) {
+        _speak("Не удалось найти маршрут до $cleanDest. Попробуйте уточнить адрес.");
+        setState(() => _isProcessing = false);
+        return;
+      }
+      
       setState(() {
         _isNavigating = true;
         _destination = cleanDest;
         _routeSteps = steps;
         _currentStepIndex = 0;
+        _isProcessing = false;
       });
 
-      if (steps.isNotEmpty) {
-        final firstInstruct = _navigationService.getCurrentInstruction();
-        _speak("Маршрут построен. $firstInstruct");
-        _startNavigationLoop();
-      }
+      // Calculate total distance and time
+      final totalDistance = steps.fold<double>(0, (sum, step) => sum + step.distance);
+      final totalTime = steps.fold<double>(0, (sum, step) => sum + step.duration);
+      final distanceStr = totalDistance > 1000 
+          ? "${(totalDistance / 1000).toStringAsFixed(1)} километра"
+          : "${totalDistance.toInt()} метров";
+      final timeStr = "${(totalTime / 60).ceil()} минут";
+
+      final firstInstruct = _navigationService.getCurrentInstruction();
+      _speak("Маршрут до $cleanDest построен. Расстояние $distanceStr, примерно $timeStr. $firstInstruct");
+      
+      // Switch to Vision mode for camera-assisted navigation
+      setState(() => _currentIndex = TAB_VISION);
+      
+      _startNavigationLoop();
     } catch (e) {
-      _speak("Не удалось построить маршрут. Ошибка: $e");
+      print("❌ Route building error: $e");
+      _speak("Не удалось построить маршрут до $cleanDest. Проверьте подключение к интернету или уточните адрес.");
+      setState(() => _isProcessing = false);
     }
   }
 
   void _startNavigationLoop() {
-    // Run navigation loop every 5 seconds
+    // 1. Subscribe to real-time location stream for smooth navigation
+    _navigationSubscription?.cancel();
+    _navigationSubscription = _navigationService.getLocationStream().listen((position) {
+      if (!_isNavigating) return;
+      _checkNavigationProgress(position: position);
+    });
+
+    // 2. Run safety scan loop separately (check obstacles every 5 seconds)
     Future.doWhile(() async {
       if (!_isNavigating || !mounted) return false;
       
-      // 1. Check navigation progress
-      // _checkNavigationProgress();
-      
-      // 2. Perform safety scan if enough time passed (every 3 seconds)
       final now = DateTime.now();
-      if (_lastSafetyScan == null || now.difference(_lastSafetyScan!).inSeconds >= 3) {
+      if (_lastSafetyScan == null || now.difference(_lastSafetyScan!).inSeconds >= 5) {
         await _performSafetyScan();
         _lastSafetyScan = DateTime.now();
       }
 
-      await Future.delayed(const Duration(seconds: 3));
+      await Future.delayed(const Duration(seconds: 1)); // Check often but scan rarely
       return _isNavigating;
     });
+  }
+
+  /// Check if user has reached the next navigation step
+  Future<void> _checkNavigationProgress({Position? position}) async {
+    if (!_isNavigating || _routeSteps.isEmpty) return;
+    
+    try {
+      // Pass position to service to avoid double GPS fetch
+      final advanced = await _navigationService.checkStepProgress(position: position);
+      
+      if (advanced) {
+        // User reached next step - announce new instruction
+        setState(() => _currentStepIndex = _navigationService.currentStepIndex);
+        
+        if (_currentStepIndex >= _routeSteps.length - 1) {
+          // Arrived at destination - CELEBRATION!
+          _speak("Поздравляю! Вы прибыли к месту назначения: $_destination!");
+          HapticService.destinationReached(); // Premium celebration haptic
+          _stopNavigation();
+        } else {
+          // Announce next instruction with SMART directional haptic
+          final instruction = _navigationService.getCurrentInstruction();
+          final stepType = _routeSteps[_currentStepIndex].type.toLowerCase();
+          
+          // Choose haptic based on turn direction
+          if (stepType.contains('left') || stepType.contains('лев')) {
+            HapticService.leftTurn();
+          } else if (stepType.contains('right') || stepType.contains('прав')) {
+            HapticService.rightTurn();
+          } else {
+            HapticService.goStraight();
+          }
+          
+          _speak(instruction);
+        }
+      }
+    } catch (e) {
+      print("⚠️ Navigation progress check failed: $e");
+    }
   }
 
   Future<void> _performSafetyScan() async {
@@ -740,10 +1062,23 @@ class _MainNavScreenState extends State<MainNavScreen> with WidgetsBindingObserv
     }
   }
 
-  Future<void> _speak(String text, {bool isPriority = false}) async {
+  Future<void> _speak(String text, {bool isPriority = false, bool useLocalOnly = false}) async {
+    if (text.isEmpty) return;
+    
     if (isPriority) {
-      await _audioPlayer.stop();
+      await _stopSpeaking();
       HapticService.mediumImpact();
+    }
+    
+    setState(() => _isSpeaking = true);
+    
+    // NAVIGATION OPTIMIZATION:
+    // If navigating or explicit local flag, use Local TTS immediately for zero latency.
+    // Waiting for server audio while walking is dangerous and slow.
+    if (useLocalOnly || (_isNavigating && text.length < 100)) {
+       await _welcomeVoice.speak(text);
+       if (mounted) setState(() => _isSpeaking = false);
+       return;
     }
     
     // Calculate Balance for Spatial Audio if navigating
@@ -756,19 +1091,42 @@ class _MainNavScreenState extends State<MainNavScreen> with WidgetsBindingObserv
       balance = _spatialAudio.calculateBalance(_currentHeading, targetBearing);
     }
 
-    final aiResponse = await _api.smartAnalyze(text: text, mode: 'chat');
-    if (aiResponse.audio != null) {
-      final bytes = base64Decode(aiResponse.audio!);
-      final dir = await getTemporaryDirectory();
-      final file = File('${dir.path}/tts_${DateTime.now().millisecondsSinceEpoch}.mp3');
-      await file.writeAsBytes(bytes);
-      
-      await _audioPlayer.setBalance(balance); // APPLY 3D PANNING
-      await _audioPlayer.play(DeviceFileSource(file.path));
+    try {
+      // Try high-quality backend TTS first (only for long chat responses)
+      final aiResponse = await _api.smartAnalyze(text: text, mode: 'chat');
+      if (aiResponse.audio != null) {
+        final bytes = base64Decode(aiResponse.audio!);
+        final dir = await getTemporaryDirectory();
+        final file = File('${dir.path}/tts_${DateTime.now().millisecondsSinceEpoch}.mp3');
+        await file.writeAsBytes(bytes);
+        
+        await _audioPlayer.setBalance(balance);
+        await _audioPlayer.play(DeviceFileSource(file.path));
+        // Wait for completion
+        await _audioPlayer.onPlayerComplete.first;
+        if (mounted) setState(() => _isSpeaking = false);
+        return;
+      }
+    } catch (e) {
+      print("⚠️ [TTS] Backend TTS failed, using local fallback: $e");
     }
+    
+    // FALLBACK: Use local TTS
+    await _welcomeVoice.speak(text);
+    if (mounted) setState(() => _isSpeaking = false);
+  }
+  
+  /// Stop all audio playback
+  Future<void> _stopSpeaking() async {
+    await _audioPlayer.stop();
+    await _welcomeVoice.stop();
+    if (mounted) setState(() => _isSpeaking = false);
   }
 
   void _stopNavigation() {
+    _navigationSubscription?.cancel();
+    _navigationSubscription = null;
+    
     setState(() {
       _isNavigating = false;
       _destination = null;
@@ -904,9 +1262,7 @@ class _MainNavScreenState extends State<MainNavScreen> with WidgetsBindingObserv
               top: MediaQuery.of(context).padding.top + 20,
               left: 20,
               right: 20,
-              child: FadeInDown(
-                duration: const Duration(milliseconds: 600),
-                child: GlassContainer(
+              child: GlassContainer(
                   padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
                   child: Row(
                     children: [
@@ -960,7 +1316,6 @@ class _MainNavScreenState extends State<MainNavScreen> with WidgetsBindingObserv
                     ],
                   ),
                 ),
-              ),
             ),
 
           // REAL-TIME SCANNING INDICATOR
@@ -969,7 +1324,9 @@ class _MainNavScreenState extends State<MainNavScreen> with WidgetsBindingObserv
               bottom: 120,
               left: 40,
               right: 40,
-              child: FadeInUp(
+              child: AnimatedOpacity(
+                opacity: _isSafetyScanning ? 1.0 : 0.0,
+                duration: const Duration(milliseconds: 500),
                 child: Container(
                   padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
                   decoration: BoxDecoration(
@@ -1013,9 +1370,7 @@ class _MainNavScreenState extends State<MainNavScreen> with WidgetsBindingObserv
               bottom: 120,
               left: 20,
               right: 20,
-              child: FadeInUp(
-                duration: const Duration(milliseconds: 300),
-                child: GlassContainer(
+              child: GlassContainer(
                   padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
                   child: Row(
                     children: [
@@ -1051,7 +1406,6 @@ class _MainNavScreenState extends State<MainNavScreen> with WidgetsBindingObserv
                     ],
                   ),
                 ),
-              ),
             ),
           
           // Animated Wake Word Indicator
@@ -1060,7 +1414,7 @@ class _MainNavScreenState extends State<MainNavScreen> with WidgetsBindingObserv
               top: 50,
               right: 20,
               child: TweenAnimationBuilder<double>(
-                duration: const Duration(milliseconds: 1500),
+                duration: const Duration(milliseconds: 500),
                 tween: Tween(begin: 0.0, end: 1.0),
                 curve: Curves.easeInOut,
                 builder: (context, value, child) {
@@ -1128,6 +1482,48 @@ class _MainNavScreenState extends State<MainNavScreen> with WidgetsBindingObserv
                           fontSize: 12,
                           fontWeight: FontWeight.bold,
                           letterSpacing: 1.2,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+
+          // STOP SPEAKING BUTTON - appears when TTS is playing
+          if (_isSpeaking)
+            Positioned(
+              top: 50,
+              left: 20,
+              child: GestureDetector(
+                onTap: () {
+                  HapticService.mediumImpact();
+                  _stopSpeaking();
+                },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: Colors.redAccent,
+                    borderRadius: BorderRadius.circular(20),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.redAccent.withOpacity(0.5),
+                        blurRadius: 10,
+                        spreadRadius: 2,
+                      ),
+                    ],
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.stop, color: Colors.white, size: 18),
+                      SizedBox(width: 6),
+                      Text(
+                        'STOP',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
                         ),
                       ),
                     ],
