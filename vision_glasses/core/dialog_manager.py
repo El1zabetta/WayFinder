@@ -1,18 +1,39 @@
 import logging
 
-# Заглушка, в реальности тут будет import openai / llama_cpp
 def mock_llm_inference(system_prompt, user_prompt):
     """Эмуляция ответа LLM для локального теста без API ключей."""
     user_prompt = user_prompt.lower()
+    system_prompt_lower = system_prompt.lower()
     
+    # Пытаемся найти имя в системном промпте
+    name = "Пользователь"
+    if "имя пользователя: " in system_prompt_lower:
+        try:
+            # Ищем строку "имя пользователя: <name>"
+            start = system_prompt_lower.find("имя пользователя: ") + len("имя пользователя: ")
+            end = system_prompt_lower.find("\n", start)
+            if end == -1: end = len(system_prompt_lower)
+            extracted_name = system_prompt[start:end].strip()
+            if extracted_name and extracted_name.lower() != "none":
+                name = extracted_name
+        except:
+            pass
+
     if "как тебя зовут" in user_prompt:
         return "Я A-Vision, твой умный помощник."
+        
+    if "как меня зовут" in user_prompt:
+        if name != "Пользователь":
+            return f"Тебя зовут {name}."
+        return "Я пока не знаю твоего имени. Представься, пожалуйста."
+
     if "устал" in user_prompt:
         return "Отдохни немного. Может, выпьем кофе?"
+        
     if "вижу" in user_prompt:
         return "Я тоже вижу эти объекты. Интересная сцена."
         
-    return "Понял тебя. Продолжаем работу."
+    return f"Понял, {name}. Продолжаем работу."
 
 class DialogManager:
     """
@@ -54,7 +75,7 @@ class DialogManager:
         
         # 2. Check for memory updates (Mock extraction)
         # В реальности тут нужен отдельный LLM call или extraction logic
-        if "меня зовут" in user_text.lower():
+        if "меня зовут" in user_text.lower() and "как" not in user_text.lower():
             parts = user_text.split()
             # Очень глупый парсинг для примера
             if len(parts) > 2: 

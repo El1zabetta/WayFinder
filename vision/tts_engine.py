@@ -13,7 +13,7 @@ class TTSBrain:
     """
     
     @classmethod
-    async def speak(cls, text: str) -> bytes:
+    async def speak(cls, text: str, mood: str = "neutral") -> bytes:
         """
         Генерирует речь и возвращает байты (WAV).
         """
@@ -21,7 +21,7 @@ class TTSBrain:
         
         # 1. Генерируем файл
         # Возвращает URL типа /media/tts/file.wav
-        media_url = await manager.generate_speech(text)
+        media_url = await manager.generate_speech(text, mood=mood)
         
         if not media_url:
             return None

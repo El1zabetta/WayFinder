@@ -11,6 +11,8 @@ import 'package:record/record.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:flutter_compass/flutter_compass.dart'; // Added for Compass
+import 'package:battery_plus/battery_plus.dart';
+import 'package:geolocator/geolocator.dart';
 
 import 'theme/app_theme.dart';
 import 'services/advanced_ai_service.dart';
@@ -149,6 +151,8 @@ class _MainNavScreenState extends State<MainNavScreen> with WidgetsBindingObserv
   int _currentStepIndex = 0;
   DateTime? _lastSafetyScan;
   bool _isSafetyScanning = false;
+  bool _isThinking = false;
+  bool _isDanger = false;
   
    // Advanced Features
   final _spatialAudio = SpatialAudioService();
@@ -156,6 +160,11 @@ class _MainNavScreenState extends State<MainNavScreen> with WidgetsBindingObserv
   double _currentHeading = 0;
   StreamSubscription? _compassSubscription;
   StreamSubscription? _navigationSubscription;
+  
+  // Battery Monitor
+  final Battery _battery = Battery();
+  double _batteryLevel = 1.0;
+  Timer? _batteryTimer;
 
 
   // State
@@ -165,6 +174,7 @@ class _MainNavScreenState extends State<MainNavScreen> with WidgetsBindingObserv
   bool _isSpeaking = false; // Track TTS playback
   List<ChatMessage> _messages = [];
   String _visionStatus = "";
+  List<String>? _detectedObjects;
   String _partialSpeechText = "";
   
   // HUD Animation Controller
@@ -181,7 +191,10 @@ class _MainNavScreenState extends State<MainNavScreen> with WidgetsBindingObserv
     
     _initHardware();
     _loadChatHistory();
+
     _playWelcomeIfFirstLaunch();
+    _initBattery();
+    _initVisionLoop();
     
     _porcupineService = PorcupineWakeWordService(
       onWakeWordDetected: _handlePorcupineWake,
@@ -248,6 +261,17 @@ class _MainNavScreenState extends State<MainNavScreen> with WidgetsBindingObserv
       setState(() {
         _currentHeading = event.heading ?? 0;
       });
+    });
+  }
+
+  void _initBattery() {
+    _battery.batteryLevel.then((level) {
+      if (mounted) setState(() => _batteryLevel = level / 100);
+    });
+    
+    _batteryTimer = Timer.periodic(const Duration(minutes: 1), (timer) async {
+      final level = await _battery.batteryLevel;
+      if (mounted) setState(() => _batteryLevel = level / 100);
     });
   }
 
@@ -407,15 +431,46 @@ Let's get started!
   Future<void> _initHardware() async {
     await [Permission.camera, Permission.microphone, Permission.location].request();
     
-    // Initialize performance monitoring (cache cleanup, battery)
+    // Initialize performance monitoring
     await PerformanceService().initialize();
     
-    // Warn user if battery is critically low
-    if (PerformanceService().shouldWarnLowBattery) {
-      _welcomeVoice.speak("Внимание! Заряд батареи очень низкий. Рекомендую подключить зарядку.");
-    }
-    
     await _initCamera();
+    
+    // Start the Premium Startup Sequence
+    _startupSequence();
+  }
+
+  Future<void> _startupSequence() async {
+    print("🚀 [MAIN] Starting WayFinder System Sequence...");
+    
+    setState(() {
+      _visionStatus = "INITIALIZING SYSTEMS...";
+      _isProcessing = true;
+    });
+
+    // 1. BIOS / Core Check
+    await HapticService.lightImpact();
+    await Future.delayed(const Duration(milliseconds: 400));
+    
+    // 2. Sensor Sync
+    setState(() => _visionStatus = "SENSORS SYNCING...");
+    await HapticService.mediumImpact();
+    await Future.delayed(const Duration(milliseconds: 500));
+    
+    // 3. AI Brain Connection
+    setState(() => _visionStatus = "AI BRAIN ONLINE");
+    await HapticService.success();
+    
+    // 4. Final Voice Welcome (Subtle)
+    _welcomeVoice.speak("Системы активны. Я готов помочь.");
+    
+    setState(() {
+      _visionStatus = "SYSTEMS NOMINAL";
+      _isProcessing = false;
+    });
+    
+    await Future.delayed(const Duration(seconds: 1));
+    setState(() => _visionStatus = "");
   }
 
   Future<void> _initWakeWord() async {
@@ -1138,18 +1193,22 @@ Let's get started!
   }
 
   Future<void> _processRequest({String? audioPath, String text = '', required String mode}) async {
+    setState(() {
+      _isProcessing = true;
+      _isThinking = true;
+    });
+
     try {
       XFile? imageFile;
-    if (_cameraController != null && _cameraController!.value.isInitialized) {
-      try {
-        // Делаем снимок для анализа, если мы в режиме Vision
-        // Оптимизируем: делаем фото в низком разрешении для скорости ИИ
-        imageFile = await _cameraController!.takePicture();
-        print("📸 [MAIN] Picture taken for analysis: ${imageFile.path}");
-      } catch (e) {
-        print("❌ [MAIN] Error taking picture: $e");
+      if (_cameraController != null && _cameraController!.value.isInitialized) {
+        try {
+          imageFile = await _cameraController!.takePicture();
+          print("📸 [MAIN] Picture taken for analysis: ${imageFile.path}");
+        } catch (e) {
+          print("❌ [MAIN] Error taking picture: $e");
+        }
       }
-    }
+
       final aiResponse = await _api.smartAnalyze(
         image: imageFile, 
         audioPath: audioPath, 
@@ -1162,13 +1221,24 @@ Let's get started!
 
       if (!mounted) return;
 
+      // HAPTIC FEEDBACK: Pulsing based on detected objects
+      if (aiResponse.detectedObjects != null && aiResponse.detectedObjects!.isNotEmpty) {
+        HapticService.mediumImpact();
+      }
+
       final aiMsg = ChatMessage(text: msg, isUser: false, timestamp: DateTime.now());
       setState(() {
         if (mode == 'chat') {
            _messages.add(aiMsg);
         } else {
            _visionStatus = msg;
+           _detectedObjects = aiResponse.detectedObjects;
+           
+           // Danger check
+           final dangerWords = ['caution', 'danger', 'obstacle', 'warning', 'машина', 'яма', 'препятствие'];
+           _isDanger = dangerWords.any((w) => msg.toLowerCase().contains(w.toLowerCase()));
         }
+        _isThinking = false;
         _isProcessing = false;
       });
       
@@ -1185,13 +1255,17 @@ Let's get started!
         final errorMsg = ChatMessage(text: "Ошибка: $e", isUser: false, timestamp: DateTime.now());
         setState(() {
           _messages.add(errorMsg);
+          _isThinking = false;
           _isProcessing = false;
         });
         await _chatHistory.saveHistory(_messages);
       }
     } finally {
       if (mounted) {
-          setState(() { _isProcessing = false; });
+          setState(() { 
+            _isProcessing = false; 
+            _isThinking = false;
+          });
           if (_wakeWordEnabled && !_isRecording) {
             _porcupineService.startListening();
           }
@@ -1242,7 +1316,14 @@ Let's get started!
                 cameraController: _cameraController,
                 statusText: _visionStatus,
                 isProcessing: _isProcessing,
-                onScanTap: () => {}, // Continuous scan usually
+                isThinking: _isThinking,
+                isDanger: _isDanger,
+                onScanTap: () => {}, 
+                // Premium HUD Info
+                distance: _getFormattedDistance(),
+                direction: _getFormattedDirection(),
+                batteryLevel: _batteryLevel,
+                detectedObjects: _detectedObjects,
               ),
 
               // TAB 2: SETTINGS
@@ -1566,7 +1647,10 @@ Let's get started!
               icon: Icon(Icons.remove_red_eye_outlined, color: _currentIndex == 1 ? const Color(0xFF00D4FF) : Colors.white38),
               onPressed: () {
                 HapticService.lightImpact();
-                setState(() => _currentIndex = 1);
+                setState(() {
+                  _currentIndex = 1;
+                  // Start subtle ambient scan sound if needed
+                });
               },
               tooltip: l10n.navigatorMode,
             ),
@@ -1624,5 +1708,49 @@ Let's get started!
         const SnackBar(content: Text("История чата очищена")),
       );
     }
+  }
+
+  Timer? _visionLoopTimer;
+
+  void _initVisionLoop() {
+    _visionLoopTimer = Timer.periodic(const Duration(seconds: 4), (timer) {
+      if (_currentIndex == TAB_VISION && 
+          !_isProcessing && 
+          !_isRecording && 
+          !_isSpeaking &&
+          _cameraController != null && 
+          _cameraController!.value.isInitialized) {
+        
+        print("🔍 [VISION LOOP] Automatic environment scan...");
+        _processRequest(mode: 'vision');
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _visionLoopTimer?.cancel();
+    _batteryTimer?.cancel();
+    _compassSubscription?.cancel();
+    _navigationSubscription?.cancel();
+    _hudController.dispose();
+    _audioRecorder.dispose();
+    _audioPlayer.dispose();
+    _porcupineService.dispose();
+    _speechService.dispose();
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  String? _getFormattedDistance() {
+    if (!_isNavigating || _routeSteps.isEmpty || _currentStepIndex >= _routeSteps.length) return null;
+    final dist = _routeSteps[_currentStepIndex].distance;
+    return dist < 1000 ? "${dist.toInt()} m" : "${(dist / 1000).toStringAsFixed(1)} km";
+  }
+
+  String? _getFormattedDirection() {
+     if (!_isNavigating || _routeSteps.isEmpty || _currentStepIndex >= _routeSteps.length) return null;
+     final step = _routeSteps[_currentStepIndex];
+     return step.instruction.split(' ').take(2).join(' '); // Shorten
   }
 }

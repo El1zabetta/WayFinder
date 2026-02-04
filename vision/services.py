@@ -172,7 +172,7 @@ async def generate_ai_response_async(user_text, visual_context=None, user_obj=No
 
     # 2. CAG: Строим умный промпт для незрячих пользователей
     if cag:
-        system_prompt = cag.build_system_prompt(visual_context)
+        system_prompt = cag.build_system_prompt(visual_context, user_query=user_text)
     else:
         system_prompt = """Ты WayFinder — персональный голосовой ИИ-ассистент для незрячих людей.
 
@@ -230,8 +230,8 @@ async def generate_ai_response_async(user_text, visual_context=None, user_obj=No
         logger.error(f"DeepSeek API Error: {e}")
         return f"Извините, произошла ошибка связи. Попробуйте еще раз."
 
-async def text_to_speech_async(text):
-    return await TTSBrain.speak(text)
+async def text_to_speech_async(text, mood="neutral"):
+    return await TTSBrain.speak(text, mood=mood)
 
 def get_ai_response_sync(text, visual_context=None):
     return asyncio.run(generate_ai_response_async(text, visual_context))

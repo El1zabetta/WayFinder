@@ -163,4 +163,10 @@ STATICFILES_DIRS = [BASE_DIR / "vision" / "static"]
 
 CORS_ALLOW_ALL_ORIGINS = True
 
+SUBSCRIPTION_LIMITS = {
+    'free': 10,
+    'premium': 1000,
+    'pro': 999999
+}
+
 

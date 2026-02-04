@@ -1,15 +1,22 @@
 import logging
 from datetime import datetime
 from .models import VisionUser
+from .vector_memory import VectorMemory
+import os
 
 logger = logging.getLogger(__name__)
 
 class CAGSystem:
     """
-    Context-Affect-Guidance Orchestrator
+    Context-Affect-Guidance Orchestrator with RAG support
     """
     def __init__(self, user: VisionUser):
         self.user = user
+        # Path for vector memory storage
+        base_path = os.path.dirname(os.path.abspath(__file__))
+        storage_path = os.path.join(base_path, "..", "data", "memory", str(self.user.id))
+        self.vector_memory = VectorMemory(storage_path)
+        
         # Инициализация фактов, если пусто
         if not self.user.facts:
             self.user.facts = {
@@ -20,61 +27,87 @@ class CAGSystem:
             }
 
     def update_state(self, user_text: str):
-        """Обновляет аффективное состояние (настроение)"""
+        """Обновляет аффективное состояние и долгосрочную память"""
         text = user_text.lower()
         facts = self.user.facts
         
-        # Простейшая эвристика (можно заменить на классификатор)
-        if any(w in text for w in ["устал", "спать", "нет сил"]):
+        # 1. Affective State
+        if any(w in text for w in ["устал", "спать", "нет сил", "тяжело"]):
             facts["mood"] = "tired"
             facts["energy"] = "low"
-        elif any(w in text for w in ["круто", "спасибо", "рад"]):
+        elif any(w in text for w in ["круто", "спасибо", "рад", "отлично"]):
             facts["mood"] = "happy"
             facts["energy"] = "high"
-        elif any(w in text for w in ["привет", "старт"]):
-            facts["mood"] = "neutral"
             
-        # Обновляем память
-        if "меня зовут" in text:
+        # 2. Extract Facts for Vector Memory
+        # Пример: "У меня есть собака по кличке Шарик"
+        if any(w in text for w in ["у меня есть", "я люблю", "меня зовут", "мой адрес"]):
+            self.vector_memory.add_fact(user_text)
+
+        # 3. Update Name
+        if "меня зовут" in text and "как" not in text:
             parts = text.split(" зовут ")
             if len(parts) > 1:
-                name = parts[1].split()[0].capitalize()
+                name_part = parts[1].strip()
+                name = name_part.split()[0].capitalize()
                 facts["name"] = name
 
         self.user.facts = facts
         self.user.save()
 
-    def build_system_prompt(self, visual_context=None) -> str:
-        """Собирает системный промпт для LLM"""
+    def determine_situation(self):
+        # Простая эвристика времени суток
+        hour = datetime.now().hour
+        if 6 <= hour < 12:
+            return "утро"
+        elif 12 <= hour < 18:
+            return "день"
+        elif 18 <= hour < 23:
+            return "вечер"
+        else:
+            return "ночь"
+
+    def build_system_prompt(self, visual_context=None, user_query: str = "") -> str:
+        """Собирает системный промпт для LLM с учетом RAG"""
         f = self.user.facts
+        situation = self.determine_situation()
+        time_str = datetime.now().strftime("%H:%M")
         
-        # 1. Личность
+        # 1. RAG: Получаем релевантный контекст
+        rag_context = ""
+        if user_query:
+            rag_context = self.vector_memory.get_context_string(user_query)
+        
+        # 2. Личность и Ситуация
         prompt = (
-            "Ты — A-Vision, умный помощник в очках. Твоя цель — помогать пользователю ориентироваться и решать задачи.\n"
-            "Отвечай кратко (1-3 предложения), живо и по-человечески.\n\n"
+            "Ты — WayFinder (A-Vision), умный помощник в очках для незрячих. "
+            "Твоя цель — быть глазами пользователя: описывать мир, читать тексты, помогать ориентироваться.\n"
+            "Отвечай кратко (1-3 предложения), живо и с эмпатией.\n"
+            f"Сейчас {situation}, время {time_str}.\n\n"
         )
         
-        # 2. Профиль пользователя
+        # 3. Профиль пользователя
         if f.get("name"):
-            prompt += f"Пользователя зовут {f['name']}. Обращайся по имени иногда.\n"
+            prompt += f"Пользователя зовут {f['name']}. Обращайся по имени, когда это уместно.\n"
         
-        if f.get("interests"):
-            prompt += f"Интересы пользователя: {', '.join(f['interests'])}.\n"
+        # 4. Состояние (Affect)
+        mood_map = {
+            "tired": "У пользователя мало сил. Предлагай простые решения, будь мягче.", 
+            "happy": "Пользователь в хорошем настроении. Поддерживай позитив!",
+            "neutral": ""
+        }
+        prompt += f"{mood_map.get(f.get('mood', 'neutral'), '')}\n"
+        
+        # 5. RAG Context
+        if rag_context:
+            prompt += f"\nИНФОРМАЦИЯ ИЗ ПАМЯТИ:\n{rag_context}\n"
             
-        # 3. Состояние (Affect)
-        mood_map = {"tired": "У пользователя мало сил, отвечай мягко и поддерживающе.", 
-                   "happy": "Пользователь рад, поддерживай позитив!",
-                   "neutral": ""}
-        prompt += f"{mood_map.get(f.get('mood'), '')}\n\n"
-        
-        # 4. Контекст времени
-        hour = datetime.now().hour
-        time_desc = "День" if 9 <= hour < 18 else "Вечер/Ночь"
-        prompt += f"Сейчас {time_desc} ({hour}:00).\n"
-        
+        # 6. Визуальный контекст
         if visual_context:
-            prompt += f"\nТы видишь: {visual_context}\n"
+            prompt += f"\nТЫ ВИДИШЬ (КАМЕРА): {visual_context}\n"
+        else:
+            prompt += "\nТЫ ВИДИШЬ: (изображение недоступно или неясно)\n"
             
-        prompt += "\nИнструкция: Если пользователь спрашивает 'что ты видишь', опиши сцену. Если просит помощи, помоги."
+        prompt += "\nИнструкция: Если спросят 'что ты видишь', опиши сцену. Если команда навигации — дай четкие инструкции. Если просто беседа — поддержи разговор."
         
         return prompt

@@ -4,19 +4,32 @@ import 'package:loading_animation_widget/loading_animation_widget.dart';
 import '../widgets/glass_container.dart';
 import '../l10n/app_localizations.dart';
 import '../widgets/ar_camera_overlay.dart';
+import '../widgets/hud_info_display.dart'; // Added import for HUDInfoDisplay
 
 class VisionModeScreen extends StatefulWidget {
   final CameraController? cameraController;
   final String statusText;
   final bool isProcessing;
+  final bool isThinking; // Added field
+  final bool isDanger; // Added field
   final VoidCallback onScanTap;
+  final String? distance; // Added field
+  final String? direction; // Added field
+  final double? batteryLevel; // Added field
+  final List<String>? detectedObjects; // Added field
 
   const VisionModeScreen({
     super.key,
     required this.cameraController,
     required this.statusText,
     required this.isProcessing,
+    this.isThinking = false,
+    this.isDanger = false,
     required this.onScanTap,
+    this.distance, // Added to constructor
+    this.direction, // Added to constructor
+    this.batteryLevel, // Added to constructor
+    this.detectedObjects,
   });
 
   @override
@@ -95,7 +108,8 @@ class _VisionModeScreenState extends State<VisionModeScreen> {
         ARCameraOverlay(
           cameraSize: MediaQuery.of(context).size,
           detections: [
-            if (widget.statusText.contains('door'))
+          detections: [
+            if (widget.detectedObjects != null && widget.detectedObjects!.contains('door'))
               DetectionBox(
                 rect: const Rect.fromLTWH(100, 200, 200, 300),
                 label: 'DOOR',
@@ -105,6 +119,16 @@ class _VisionModeScreenState extends State<VisionModeScreen> {
           ],
           showGrid: false,     // Removed grid
           showCrosshair: false, // Removed crosshair
+        ),
+
+        // HUD Info Display (Premium Feature)
+        HUDInfoDisplay(
+          distance: widget.distance,
+          direction: widget.direction,
+          batteryLevel: widget.batteryLevel,
+          objectCount: widget.detectedObjects?.length ?? 0,
+          isThinking: widget.isThinking || widget.isProcessing,
+          isDanger: widget.isDanger,
         ),
 
         // Central Loading Animation - Cleaner

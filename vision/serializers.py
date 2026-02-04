@@ -48,6 +48,7 @@ class UserProfileSerializer(serializers.ModelSerializer):
                            'daily_requests_count', 'total_requests', 'created_at']
     
     def get_requests_remaining(self, obj):
-        limits = {'free': 10, 'premium': 999999, 'pro': 999999}
+        from django.conf import settings
+        limits = getattr(settings, 'SUBSCRIPTION_LIMITS', {'free': 10})
         limit = limits.get(obj.subscription_type, 10)
         return max(0, limit - obj.daily_requests_count)

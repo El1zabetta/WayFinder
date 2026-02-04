@@ -70,3 +70,9 @@ secrets.dart
 *.ppn.backup
 tunnels.json
 google-services.json
+
+# User Data & Private Cache
+user_profile.json
+data/memory/
+vision_assistant/user_profile.json
+vision_glasses/user_profile.json

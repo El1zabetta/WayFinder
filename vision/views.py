@@ -224,24 +224,36 @@ class SmartAnalyzeView(View):
                  # BLIP
                  vision_task = sync_to_async(analyze_image_local)(image_bytes)
 
-        # Выполняем параллельно STT и Vision
+        # Запускаем задачи параллельно
+        # Структура tasks: [stt_task (optional), yolo_task (optional), blip_task (optional)]
         tasks = []
-        if stt_task: tasks.append(stt_task) # index 0 if exists
-        if vision_task: tasks.append(vision_task) # index 0 or 1
+        task_map = {} # map task name to index
+
+        if stt_task:
+            task_map['stt'] = len(tasks)
+            tasks.append(stt_task)
+            
+        if image_bytes:
+            # Always run YOLO for HUD info
+            yolo_task = sync_to_async(detect_objects_local)(image_bytes)
+            task_map['yolo'] = len(tasks)
+            tasks.append(yolo_task)
+            
+            if mode != 'navigator':
+                blip_task = sync_to_async(analyze_image_local)(image_bytes)
+                task_map['blip'] = len(tasks)
+                tasks.append(blip_task)
 
         results = await asyncio.gather(*tasks)
 
         # Разбираем результаты
-        transcript = None
-        visual_result = None
+        transcript = results[task_map['stt']] if 'stt' in task_map else None
         
-        current_res_idx = 0
-        if stt_task:
-            transcript = results[current_res_idx]
-            print(f"🎤 DEBUG TRANCRIPT: '{transcript}' (Type: {type(transcript)})")
-            current_res_idx += 1
-        if vision_task:
-            visual_result = results[current_res_idx]
+        # YOLO result: list of strings
+        detected_objects = results[task_map['yolo']] if 'yolo' in task_map else []
+        
+        # BLIP result: string description
+        visual_description = results[task_map['blip']] if 'blip' in task_map else None
         
         # Обновляем текст
         if transcript:
@@ -249,12 +261,16 @@ class SmartAnalyzeView(View):
 
         # Если режим навигатора - возвращаем быстрый ответ
         if mode == 'navigator':
-            objects = visual_result if visual_result else []
-            if objects:
-                 response_text = ", ".join(objects)
+            if detected_objects:
+                 response_text = ", ".join(detected_objects)
             else:
-                 response_text = ""
-            return JsonResponse({'message': response_text, 'audio': None})
+                 response_text = "Путь свободен"
+            
+            return JsonResponse({
+                'message': response_text, 
+                'audio': None,
+                'detected_objects': detected_objects
+            })
 
         # Режим чата
         visual_description = visual_result
@@ -292,8 +308,9 @@ class SmartAnalyzeView(View):
         if user:
             await sync_to_async(user.increment_request_count)()
 
-        # 6. TTS
-        audio_content = await text_to_speech_async(response_text)
+        # 6. TTS with Mood
+        mood = vision_user.facts.get('mood', 'neutral') if vision_user else 'neutral'
+        audio_content = await text_to_speech_async(response_text, mood=mood)
         audio_b64 = None
         if audio_content:
             audio_b64 = base64.b64encode(audio_content).decode('utf-8')
@@ -301,7 +318,8 @@ class SmartAnalyzeView(View):
         return JsonResponse({
             'message': response_text,
             'audio': audio_b64,
-            'debug_vision': visual_description
+            'debug_vision': visual_description,
+            'detected_objects': detected_objects
         })
 
 def index(request):

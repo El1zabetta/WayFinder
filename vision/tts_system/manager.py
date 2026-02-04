@@ -36,31 +36,43 @@ class TTSManager:
         #     logger.error(f"❌ Failed to load KaniTTS: {e}")
         #     self._model = None
 
-    async def generate_speech(self, text: str) -> str:
+    async def generate_speech(self, text: str, mood: str = "neutral") -> str:
         """
-        Генерирует речь и возвращает RELATIVE URL к файлу (например, /media/tts/xyz.wav).
-        Асинхронный метод для Django views.
+        Генерирует речь и возвращает RELATIVE URL к файлу.
+        mood: 'happy', 'tired', 'neutral'
         """
         filename = f"tts_{uuid.uuid4().hex[:8]}.wav"
         full_path = os.path.join(TTSConfig.OUTPUT_PATH, filename)
         
-        # 1. Попытка использовать KaniTTS
+        # 1. Попытка использовать KaniTTS (высокое качество)
         if self._model:
             try:
-                # KaniTTS sync generation (нужно запускать в threadpool, если блокирует)
-                # Но пока сделаем синхронно, т.к. generate достаточно быстр на GPU
+                # KaniTTS поддерживет тонкую настройку через Speaker ID или промпты
                 audio = self._model.generate(text)
                 self._model.save_audio(audio, full_path)
-                
-                # Возвращаем URL
                 return f"{TTSConfig.MEDIA_URL}{filename}"
             except Exception as e:
                 logger.error(f"KaniTTS generation failed: {e}. Falling back to EdgeTTS.")
 
-        # 2. Fallback на EdgeTTS (если Kani нет или ошибка)
+        # 2. Fallback на EdgeTTS с выбором голоса по настроению
+        # Voices: DmitryNeural (Neutral), SvetlanaNeural (Happy/Soft), EliasNeural (Calm)
+        voice_map = {
+            "happy": "ru-RU-SvetlanaNeural",
+            "tired": "ru-RU-DmitryNeural", # Can add pitch/rate adjustments
+            "neutral": "ru-RU-DmitryNeural"
+        }
+        voice = voice_map.get(mood, "ru-RU-DmitryNeural")
+        
+        # Настройка скорости в зависимости от настроения
+        rate = "+0%"
+        if mood == "tired":
+            rate = "-10%" # Медленнее, если пользователь устал
+        elif mood == "happy":
+            rate = "+5%"  # Чуть бодрее
+            
         try:
             import edge_tts
-            communicate = edge_tts.Communicate(text, "ru-RU-DmitryNeural") # Default to Russian
+            communicate = edge_tts.Communicate(text, voice, rate=rate)
             await communicate.save(full_path)
             return f"{TTSConfig.MEDIA_URL}{filename}"
         except Exception as e:

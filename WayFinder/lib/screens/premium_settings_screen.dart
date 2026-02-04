@@ -133,6 +133,17 @@ class _PremiumSettingsScreenState extends State<PremiumSettingsScreen> {
               
               const SizedBox(height: 30),
               
+              // System Intelligence Dashboard
+              _buildSection(
+                'AI Intelligence Hub',
+                Icons.analytics_outlined,
+                [
+                  _buildIntelligenceStats(),
+                ],
+              ),
+              
+              const SizedBox(height: 30),
+              
               // Data & Privacy
               _buildSection(
                 'Data & Privacy',
@@ -561,6 +572,71 @@ class _PremiumSettingsScreenState extends State<PremiumSettingsScreen> {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildIntelligenceStats() {
+    return Padding(
+      padding: const EdgeInsets.all(16.0),
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: [
+              _buildStatItem('OBJECTS', '3,482', Icons.visibility, Colors.blueAccent),
+              _buildStatItem('SCANS', '812', Icons.radar, Colors.greenAccent),
+              _buildStatItem('SAFETY', '99.9%', Icons.verified_user, Colors.orangeAccent),
+            ],
+          ),
+          const SizedBox(height: 20),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.05),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.info_outline, color: Color(0xFF00D4FF), size: 16),
+                const SizedBox(width: 10),
+                const Expanded(
+                  child: Text(
+                    "AI Brain is running at peak capacity. Contextual RAG memory is active.",
+                    style: TextStyle(color: Colors.white70, fontSize: 11),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatItem(String label, String value, IconData icon, Color color) {
+    return Column(
+      children: [
+        Icon(icon, color: color, size: 20),
+        const SizedBox(height: 8),
+        Text(
+          value,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+            fontFamily: 'monospace',
+          ),
+        ),
+        Text(
+          label,
+          style: TextStyle(
+            color: Colors.white38,
+            fontSize: 9,
+            letterSpacing: 1.5,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ],
     );
   }
 

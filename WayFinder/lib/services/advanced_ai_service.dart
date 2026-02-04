@@ -106,6 +106,9 @@ class AdvancedVisionApiService {
           message: data['message'] ?? '',
           audio: data['audio'],
           debugVision: data['debug_vision'],
+          detectedObjects: (data['detected_objects'] as List<dynamic>?)
+              ?.map((e) => e.toString())
+              .toList(),
           confidence: data['confidence']?.toDouble() ?? 1.0,
           responseTime: duration,
           cached: false,
@@ -174,6 +177,9 @@ class AdvancedVisionApiService {
           message: data['message'] ?? '',
           audio: data['audio'],
           debugVision: data['debug_vision'],
+          detectedObjects: (data['detected_objects'] as List<dynamic>?)
+              ?.map((e) => e.toString())
+              .toList(),
           confidence: 1.0,
           responseTime: Duration.zero,
           cached: false,
@@ -348,7 +354,8 @@ Guide users safely to their destination.''';
       return AIResponse(
         message: "Привет! Я готов помочь. Скажите 'Что передо мной', чтобы описать сцену, или 'Построй маршрут', чтобы пойти куда-нибудь.",
         confidence: 1.0,
-        hasAudio: false,
+        responseTime: Duration.zero,
+        cached: true,
       );
     }
     
@@ -357,7 +364,8 @@ Guide users safely to their destination.''';
       return AIResponse(
         message: "Пожалуйста! Обращайтесь в любое время.",
         confidence: 1.0,
-        hasAudio: false,
+        responseTime: Duration.zero,
+        cached: true,
       );
     }
     
@@ -366,7 +374,8 @@ Guide users safely to their destination.''';
       return AIResponse(
         message: "Всё отлично! Системы работают в штатном режиме. Батарея и GPS в норме. Чем могу помочь?",
         confidence: 1.0,
-        hasAudio: false,
+        responseTime: Duration.zero,
+        cached: true,
       );
     }
 
@@ -375,7 +384,8 @@ Guide users safely to their destination.''';
       return AIResponse(
         message: "Я WayFinder, ваш персональный визуальный помощник. Я помогаю видеть мир через камеру вашего телефона.",
         confidence: 1.0,
-        hasAudio: false,
+        responseTime: Duration.zero,
+        cached: true,
       );
     }
     
@@ -416,6 +426,7 @@ class AIResponse {
   final String message;
   final String? audio;
   final String? debugVision;
+  final List<String>? detectedObjects;
   final double confidence;
   final Duration responseTime;
   final bool cached;
@@ -424,15 +435,16 @@ class AIResponse {
     required this.message,
     this.audio,
     this.debugVision,
+    this.detectedObjects,
     required this.confidence,
     required this.responseTime,
     required this.cached,
   });
 
-  AIResponse copyWith({
     String? message,
     String? audio,
     String? debugVision,
+    List<String>? detectedObjects,
     double? confidence,
     Duration? responseTime,
     bool? cached,
@@ -441,6 +453,7 @@ class AIResponse {
       message: message ?? this.message,
       audio: audio ?? this.audio,
       debugVision: debugVision ?? this.debugVision,
+      detectedObjects: detectedObjects ?? this.detectedObjects,
       confidence: confidence ?? this.confidence,
       responseTime: responseTime ?? this.responseTime,
       cached: cached ?? this.cached,
