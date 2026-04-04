@@ -1,0 +1,70 @@
+name: wayfinder2
+description: WayFinder 2.0 — Egocentric AI navigation assistant powered by RynnBrain 2B
+publish_to: "none"
+version: 2.0.0+1
+
+environment:
+  sdk: ">=3.3.0 <4.0.0"
+  flutter: ">=3.22.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # HTTP & WebSocket
+  http: ^1.2.2
+  web_socket_channel: ^3.0.1
+
+  # Camera & Media
+  camera: ^0.11.0+2
+  image_picker: ^1.1.2
+  video_compress: ^3.1.2
+
+  # Audio — 3D Spatial Audio
+  audioplayers: ^6.1.0
+  flutter_tts: ^4.1.0
+
+  # Permissions
+  permission_handler: ^11.3.1
+
+  # State Management
+  provider: ^6.1.2
+
+  # UI
+  flutter_animate: ^4.5.0
+  google_fonts: ^6.2.1
+  lottie: ^3.1.3
+  vibration: ^2.0.1
+
+  # Sensors (for gesture detection)
+  sensors_plus: ^5.0.1
+
+  # Utils
+  path_provider: ^2.1.4
+  shared_preferences: ^2.3.3
+  logger: ^2.4.0
+  intl: ^0.19.0
+
+  # Firebase & Google Sign In
+  firebase_core: ^3.0.0
+  firebase_auth: ^5.0.0
+  google_sign_in: ^6.3.0
+
+  # Wake word (Porcupine) & STT
+  porcupine_flutter: ^3.0.3
+  speech_to_text: ^7.0.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+  build_runner: ^2.4.11
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/audio/
+    - assets/animations/
+    - assets/images/
+    - assets/models/

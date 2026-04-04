@@ -1,0 +1,40 @@
+# WayFinder Backend — .gitignore
+
+# Environment & secrets
+.env
+*.json
+!package.json
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+*.egg
+
+# Virtual environment
+venv/
+.venv/
+
+# Database (dev)
+db.sqlite3
+
+# Static files (collected)
+staticfiles/
+
+# Logs
+logs/
+*.log
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Docker volumes (local)
+postgres_data/
+redis_data/
+
+# OS
+.DS_Store
+Thumbs.db

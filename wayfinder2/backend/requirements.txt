@@ -1,0 +1,44 @@
+# WayFinder 2.0 Backend Dependencies
+# Python 3.11+, optimized for RynnBrain-2B inference
+
+# Django + REST + WebSocket
+django==5.1.4
+djangorestframework==3.15.2
+django-cors-headers==4.6.0
+channels==4.2.0
+daphne==4.1.2
+
+# Firebase Authentication
+firebase-admin>=6.2.0
+
+# RynnBrain-2B model (Qwen3-VL-2B-Instruct base)
+transformers==4.57.1
+torch>=2.7.0
+accelerate>=1.11.0
+pillow>=10.0.0
+
+# Flash Attention (significant speedup on CUDA, requires CUDA 12+)
+# # flash-attn>=2.6.3
+
+# Video processing
+av>=12.0.0           # PyAV — ffmpeg bindings for Python
+
+# Inference acceleration
+einops>=0.7.0
+sentencepiece>=0.1.99
+
+# ─── Production dependencies ───────────────────────────────────────
+# Database
+psycopg2-binary>=2.9.9
+
+# Redis (cache + channel layer + celery queue)
+channels-redis>=4.2.0
+django-redis>=5.4.0
+celery[redis]>=5.4.0
+
+# ASGI production server
+gunicorn>=22.0.0
+uvicorn[standard]>=0.30.0
+
+# Env file loading
+python-dotenv>=1.0.0
