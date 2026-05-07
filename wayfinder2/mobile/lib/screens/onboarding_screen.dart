@@ -24,19 +24,24 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
   final List<Map<String, dynamic>> _pages = [
     {
-      'title': 'WayFinder видит за вас',
-      'body': 'Наведите камеру телефона перед собой. WayFinder опишет, что находится вокруг вас.',
+      'title': 'WayFinder sees for you',
+      'body': 'Use the large Analyze Surroundings button on the main screen to get a scene description.',
       'icon': Icons.visibility_rounded,
     },
     {
-      'title': 'Безопасная навигация',
-      'body': 'WayFinder сообщает о препятствиях и дает голосовые указания по маршруту.',
-      'icon': Icons.explore_rounded,
+      'title': 'Ask Questions',
+      'body': 'Use the large Ask WayFinder button to ask questions with voice. Wake word (Way Finder) is optional.',
+      'icon': Icons.mic_rounded,
     },
     {
-      'title': 'Задавайте вопросы',
-      'body': 'Нажмите на микрофон или скажите "Way Finder", чтобы спросить: "Что передо мной?"',
-      'icon': Icons.mic_rounded,
+      'title': 'Speech Control',
+      'body': 'Use the Stop button at any time to interrupt audio. The Repeat button will read the last phrase again.',
+      'icon': Icons.stop_circle_rounded,
+    },
+    {
+      'title': 'Safe Navigation',
+      'body': 'WayFinder reports obstacles. Remember, the app is only an assistant, be careful when moving.',
+      'icon': Icons.explore_rounded,
     },
   ];
 
@@ -86,11 +91,11 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               alignment: Alignment.topRight,
               child: Semantics(
                 button: true,
-                label: 'Пропустить введение',
+                label: 'Skip introduction',
                 child: TextButton(
                   onPressed: _completeOnboarding,
                   child: const Text(
-                    'Пропустить',
+                    'Skip',
                     style: TextStyle(color: AppTheme.textSecondary, fontSize: 16),
                   ),
                 ),
@@ -184,8 +189,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       }
                     },
                     label: _currentPage == _pages.length - 1
-                        ? 'Начать'
-                        : 'Далее',
+                        ? 'Get Started'
+                        : 'Next',
                   ),
                 ],
               ),

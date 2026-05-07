@@ -65,8 +65,8 @@ class _HomeCameraScreenState extends State<HomeCameraScreen>
     // Announce screen to screen reader
     WidgetsBinding.instance.addPostFrameCallback((_) {
       announceToScreenReader(
-        'Экран камеры WayFinder. Нажмите центральную кнопку, чтобы проанализировать окружение. '
-        'Нажмите на микрофон слева, чтобы задать вопрос, или скажите: Way Finder.',
+        'WayFinder Camera Screen. Tap the central button to analyze surroundings. '
+        'Tap the mic on the left to ask a question, or say: Way Finder.',
       );
 
       final wakeword = context.read<WakewordService>();
@@ -83,8 +83,8 @@ class _HomeCameraScreenState extends State<HomeCameraScreen>
       streamer.connect();
       streamer.onLatencyChanged = (isHigh) {
         if (isHigh && _cameraState == CameraState.idle) {
-          _audio.speak('Анализирую, двигайтесь осторожно.');
-          announceToScreenReader('Высокая задержка сети. Анализирую, двигайтесь осторожно.');
+          _audio.speak('Analyzing, move carefully.');
+          announceToScreenReader('High network latency. Analyzing, move carefully.');
         }
       };
     });
@@ -95,8 +95,8 @@ class _HomeCameraScreenState extends State<HomeCameraScreen>
       _cameras = await availableCameras();
       if (_cameras == null || _cameras!.isEmpty) {
         setState(() => _cameraState = CameraState.error);
-        _audio.speak('Камера не найдена на этом устройстве.');
-        announceToScreenReader('Камера недоступна.');
+        _audio.speak('Camera not found on this device.');
+        announceToScreenReader('Camera unavailable.');
         return;
       }
 
@@ -114,18 +114,18 @@ class _HomeCameraScreenState extends State<HomeCameraScreen>
       if (mounted) {
         setState(() => _cameraState = CameraState.error);
         if (e.code == 'CameraAccessDenied' || e.code == 'CameraAccessDeniedWithoutPrompt' || e.code == 'CameraAccessRestricted') {
-          _audio.speak('Доступ к камере запрещен. Пожалуйста, откройте настройки и разрешите доступ для WayFinder.');
-          announceToScreenReader('Доступ к камере запрещен. Откройте настройки устройства.');
+          _audio.speak('Camera access denied. Please open settings and allow access for WayFinder.');
+          announceToScreenReader('Camera access denied. Open device settings.');
         } else {
-          _audio.speak('Не удалось запустить камеру. Попробуйте еще раз.');
-          announceToScreenReader('Ошибка камеры. Нажмите кнопку повтора.');
+          _audio.speak('Failed to start camera. Please try again.');
+          announceToScreenReader('Camera error. Tap retry button.');
         }
       }
     } catch (e) {
       debugPrint('Camera init error: $e');
       if (mounted) {
         setState(() => _cameraState = CameraState.error);
-        _audio.speak('Не удалось запустить камеру.');
+        _audio.speak('Failed to start camera.');
       }
     }
   }
@@ -165,11 +165,11 @@ class _HomeCameraScreenState extends State<HomeCameraScreen>
 
     setState(() => _cameraState = CameraState.recording);
     HapticPatterns.recordingStart();
-    announceToScreenReader('Записываю окружение. Пожалуйста, подождите.');
+    announceToScreenReader('Recording surroundings. Please wait.');
 
     try {
       // Immediate voice feedback
-      _audio.speak('Анализирую...');
+      _audio.speak('Analyzing...');
 
       // Record 3-second clip
       await _controller!.startVideoRecording();
@@ -178,7 +178,7 @@ class _HomeCameraScreenState extends State<HomeCameraScreen>
 
       HapticPatterns.recordingEnd();
       setState(() => _cameraState = CameraState.analyzing);
-      announceToScreenReader('Обработка...');
+      announceToScreenReader('Processing...');
 
       // Send to backend
       final file = File(videoFile.path);
@@ -208,9 +208,9 @@ class _HomeCameraScreenState extends State<HomeCameraScreen>
         setState(() => _cameraState = CameraState.error);
 
         // Determine user-friendly message
-        String spokenError = 'Произошла ошибка. Попробуйте еще раз.';
+        String spokenError = 'An error occurred. Please try again.';
         if (e is CameraException) {
-          spokenError = 'Ошибка камеры. Пожалуйста, попробуйте еще раз.';
+          spokenError = 'Camera error. Please try again.';
         }
         
         // NavigationProvider already speaks its own error via TTS,
@@ -266,15 +266,15 @@ class _HomeCameraScreenState extends State<HomeCameraScreen>
           SafeArea(
             child: Column(
               children: [
-                _buildStatusBar(),
-                _buildAskButton(), // Large button for manual "Ask mode"
-                const Spacer(),
-                _buildAudioCompass(),
+                _buildTopBar(),
                 const SizedBox(height: 12),
+                _buildAudioCompass(),
                 _buildGuidanceCard(),
-                const SizedBox(height: 20),
-                _buildBottomControls(),
-                const SizedBox(height: 32),
+                const Spacer(),
+                _buildMainArea(),
+                const SizedBox(height: 16),
+                _buildSafetyArea(),
+                const SizedBox(height: 16),
               ],
             ),
           ),
@@ -290,8 +290,8 @@ class _HomeCameraScreenState extends State<HomeCameraScreen>
       child: Center(
         child: Semantics(
           label: isError
-              ? 'Камера недоступна. Нажмите дважды, чтобы повторить.'
-              : 'Камера загружается',
+              ? 'Camera unavailable. Double tap to retry.'
+              : 'Camera loading',
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -302,7 +302,7 @@ class _HomeCameraScreenState extends State<HomeCameraScreen>
                 const CircularProgressIndicator(color: AppTheme.accentPrimary),
               const SizedBox(height: 16),
               Text(
-                isError ? 'Камера недоступна' : 'Инициализация камеры...',
+                isError ? 'Camera unavailable' : 'Initializing camera...',
                 style: const TextStyle(
                     color: AppTheme.textSecondary, fontSize: 16),
               ),
@@ -321,7 +321,7 @@ class _HomeCameraScreenState extends State<HomeCameraScreen>
                       color: AppTheme.accentPrimary,
                       borderRadius: BorderRadius.circular(14),
                     ),
-                    child: const Text('Повторить',
+                    child: const Text('Retry',
                         style: TextStyle(
                             color: Colors.white,
                             fontSize: 16,
@@ -344,144 +344,161 @@ class _HomeCameraScreenState extends State<HomeCameraScreen>
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
             colors: [
-              Colors.black.withOpacity(0.5),
+              Colors.black.withOpacity(0.6),
               Colors.transparent,
               Colors.transparent,
-              Colors.black.withOpacity(0.7),
+              Colors.black.withOpacity(0.8),
             ],
-            stops: const [0.0, 0.2, 0.6, 1.0],
+            stops: const [0.0, 0.2, 0.5, 1.0],
           ),
         ),
       ),
     );
   }
 
-  Widget _buildStatusBar() {
+  // ─── TOP BAR (Status & Small Actions) ──────────────────────────────────
+  Widget _buildTopBar() {
     final statusConfig = _getStatusConfig();
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-      child: Semantics(
-        liveRegion: true,
-        label: 'Статус: ${statusConfig.text}',
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-          decoration: BoxDecoration(
-            color: Colors.black.withOpacity(0.6),
-            borderRadius: BorderRadius.circular(AppSizes.radiusL),
-            border: Border.all(color: statusConfig.color.withOpacity(0.4)),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Status dot
-              Container(
-                width: 8,
-                height: 8,
-                decoration: BoxDecoration(
-                  color: statusConfig.color,
-                  shape: BoxShape.circle,
-                ),
-              ),
-              const SizedBox(width: 8),
-              Text(
-                statusConfig.text,
-                style: TextStyle(
-                  color: statusConfig.color,
-                  fontWeight: FontWeight.w600,
-                  fontSize: 13,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
+    final wakeword = context.watch<WakewordService>();
+    final isWakewordActive = wakeword.isListening;
 
-  Widget _buildAskButton() {
     return Padding(
-      padding: const EdgeInsets.only(top: 24),
-      child: Semantics(
-        button: true,
-        label: 'Спросить WayFinder. Нажмите, чтобы задать вопрос голосом.',
-        child: GestureDetector(
-          onTap: () {
-            HapticPatterns.success();
-            _openAssistant();
-          },
-          child: Container(
-            width: 240,
-            height: 240,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              gradient: RadialGradient(
-                colors: [
-                  AppTheme.accentPrimary.withOpacity(0.4),
-                  AppTheme.accentPrimary.withOpacity(0.1),
-                  Colors.transparent,
-                ],
-                stops: const [0.0, 0.6, 1.0],
-              ),
-              border: Border.all(
-                color: AppTheme.accentPrimary.withOpacity(0.3),
-                width: 2,
-              ),
-            ),
-            child: Center(
-              child: Container(
-                width: 180,
-                height: 180,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: AppTheme.accentPrimary.withOpacity(0.8),
-                  boxShadow: [
-                    BoxShadow(
-                      color: AppTheme.accentPrimary.withOpacity(0.5),
-                      blurRadius: 30,
-                      spreadRadius: 5,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Left: App Status & Wakeword Status
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Semantics(
+                  liveRegion: true,
+                  label: 'App Status: ${statusConfig.text}',
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withOpacity(0.6),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: statusConfig.color.withOpacity(0.4)),
                     ),
-                  ],
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          width: 8,
+                          height: 8,
+                          decoration: BoxDecoration(
+                            color: statusConfig.color,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          statusConfig.text,
+                          style: TextStyle(
+                            color: statusConfig.color,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
-                child: const Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.mic_rounded, size: 56, color: Colors.white),
-                    SizedBox(height: 12),
-                    Text(
-                      'Спросить\nWayFinder',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 18,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 0.5,
-                        height: 1.2,
+                const SizedBox(height: 8),
+                Semantics(
+                  liveRegion: true,
+                  label: 'Wake word: ${isWakewordActive ? "Enabled" : "Disabled"}',
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withOpacity(0.6),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: (isWakewordActive ? AppTheme.safe : AppTheme.textMuted).withOpacity(0.4),
                       ),
                     ),
-                  ],
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          isWakewordActive ? Icons.mic_rounded : Icons.mic_off_rounded,
+                          color: isWakewordActive ? AppTheme.safe : AppTheme.textMuted,
+                          size: 14,
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          'Wake word: ${isWakewordActive ? "On" : "Off"}',
+                          style: TextStyle(
+                            color: isWakewordActive ? AppTheme.safe : AppTheme.textMuted,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
-              ),
+              ],
             ),
           ),
-        ).animate(onPlay: (controller) => controller.repeat(reverse: true))
-          .scale(
-            duration: 2.seconds,
-            begin: const Offset(1.0, 1.0),
-            end: const Offset(1.05, 1.05),
-            curve: Curves.easeInOut,
+          
+          // Right: Small Accessible Actions
+          Column(
+            children: [
+              Semantics(
+                button: true,
+                label: 'System Status',
+                hint: 'Check server and AI status',
+                child: GestureDetector(
+                  onTap: () => Navigator.pushNamed(context, '/system_status'),
+                  child: Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: Colors.black.withOpacity(0.6),
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white.withOpacity(0.2)),
+                    ),
+                    child: const Icon(Icons.analytics_rounded, color: AppTheme.textSecondary, size: 24),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Semantics(
+                button: true,
+                label: 'Settings',
+                hint: 'Open profile settings',
+                child: GestureDetector(
+                  onTap: () => Navigator.pushNamed(context, '/settings'),
+                  child: Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: Colors.black.withOpacity(0.6),
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white.withOpacity(0.2)),
+                    ),
+                    child: const Icon(Icons.settings_rounded, color: AppTheme.textSecondary, size: 24),
+                  ),
+                ),
+              ),
+            ],
           ),
+        ],
       ),
     );
   }
 
   ({String text, Color color}) _getStatusConfig() {
     return switch (_cameraState) {
-      CameraState.idle => (text: 'Готов', color: AppTheme.safe),
-      CameraState.recording => (text: 'Слушаю...', color: AppTheme.danger),
-      CameraState.analyzing => (text: 'Анализирую...', color: AppTheme.accentPrimary),
-      CameraState.speaking => (text: 'Говорю...', color: AppTheme.accentTeal),
-      CameraState.error => (text: 'Ошибка', color: AppTheme.danger),
-      CameraState.offline => (text: 'Оффлайн', color: AppTheme.textMuted),
+      CameraState.idle => (text: 'Ready', color: AppTheme.safe),
+      CameraState.recording => (text: 'Listening...', color: AppTheme.danger),
+      CameraState.analyzing => (text: 'Analyzing...', color: AppTheme.accentPrimary),
+      CameraState.speaking => (text: 'Speaking...', color: AppTheme.accentTeal),
+      CameraState.error => (text: 'Error', color: AppTheme.danger),
+      CameraState.offline => (text: 'Offline', color: AppTheme.textMuted),
     };
   }
 
@@ -491,7 +508,7 @@ class _HomeCameraScreenState extends State<HomeCameraScreen>
         final cues = nav.lastResult?.audioCues ?? [];
         if (cues.isEmpty) return const SizedBox.shrink();
         return Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20),
+          padding: const EdgeInsets.symmetric(horizontal: 16),
           child: AudioCompass(cues: cues),
         );
       },
@@ -507,48 +524,37 @@ class _HomeCameraScreenState extends State<HomeCameraScreen>
 
         if (_cameraState == CameraState.analyzing) {
           return Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
+            padding: const EdgeInsets.symmetric(horizontal: 16),
             child: GlassCard(
               child: Row(
                 children: [
                   const SizedBox(
                     width: 22, height: 22,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: AppTheme.accentPrimary,
-                    ),
+                    child: CircularProgressIndicator(strokeWidth: 2, color: AppTheme.accentPrimary),
                   ),
                   const SizedBox(width: 14),
-                  Text(
-                    'Анализирую окружение...',
-                    style: Theme.of(ctx).textTheme.bodyMedium,
-                  ),
+                  Text('Analyzing surroundings...', style: Theme.of(ctx).textTheme.bodyMedium),
                 ],
               ),
             ),
           );
         }
 
-        // Show error state from navigation provider
         if (nav.state == NavigationState.error && nav.errorMessage != null) {
           return Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
+            padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Semantics(
               liveRegion: true,
               label: nav.errorMessage,
               child: GlassCard(
                 child: Row(
                   children: [
-                    const Icon(Icons.error_outline_rounded,
-                        color: AppTheme.danger, size: 22),
+                    const Icon(Icons.error_outline_rounded, color: AppTheme.danger, size: 22),
                     const SizedBox(width: 14),
                     Expanded(
                       child: Text(
                         nav.errorMessage!,
-                        style: const TextStyle(
-                          color: AppTheme.textSecondary,
-                          fontSize: 14,
-                        ),
+                        style: const TextStyle(color: AppTheme.textSecondary, fontSize: 14),
                       ),
                     ),
                   ],
@@ -560,59 +566,41 @@ class _HomeCameraScreenState extends State<HomeCameraScreen>
 
         final result = nav.lastResult!;
         return Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20),
+          padding: const EdgeInsets.symmetric(horizontal: 16),
           child: Semantics(
             liveRegion: true,
-            label: 'Указания по навигации: ${result.rawText}',
+            label: 'Navigation guidance: ${result.rawText}',
             child: GlassCard(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // Navigation action pill
                   if (result.navigationAction != null)
                     Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 6),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                       margin: const EdgeInsets.only(bottom: 10),
                       decoration: BoxDecoration(
                         color: AppTheme.safe.withOpacity(0.15),
                         borderRadius: BorderRadius.circular(20),
-                        border:
-                            Border.all(color: AppTheme.safe.withOpacity(0.4)),
+                        border: Border.all(color: AppTheme.safe.withOpacity(0.4)),
                       ),
                       child: Text(
                         result.navigationAction!.replaceAll('_', ' '),
-                        style: const TextStyle(
-                          color: AppTheme.safe,
-                          fontWeight: FontWeight.w700,
-                          fontSize: 13,
-                        ),
+                        style: const TextStyle(color: AppTheme.safe, fontWeight: FontWeight.w700, fontSize: 13),
                       ),
                     ),
-
-                  // Guidance text
                   Text(
-                    result.rawText.length > 140
-                        ? '${result.rawText.substring(0, 140)}...'
-                        : result.rawText,
+                    result.rawText.length > 140 ? '${result.rawText.substring(0, 140)}...' : result.rawText,
                     style: Theme.of(ctx).textTheme.bodyMedium,
                   ),
-
                   const SizedBox(height: 8),
-                  // Confidence
                   Row(
                     children: [
-                      Icon(Icons.psychology_rounded,
-                          size: 14,
-                          color: AppTheme.accentPrimary.withOpacity(0.7)),
+                      Icon(Icons.psychology_rounded, size: 14, color: AppTheme.accentPrimary.withOpacity(0.7)),
                       const SizedBox(width: 4),
                       Text(
-                        'Уверенность: ${(result.confidence * 100).toStringAsFixed(0)}%',
-                        style: const TextStyle(
-                          color: AppTheme.textMuted,
-                          fontSize: 12,
-                        ),
+                        'Confidence: ${(result.confidence * 100).toStringAsFixed(0)}%',
+                        style: const TextStyle(color: AppTheme.textMuted, fontSize: 12),
                       ),
                     ],
                   ),
@@ -625,42 +613,52 @@ class _HomeCameraScreenState extends State<HomeCameraScreen>
     );
   }
 
-  Widget _buildBottomControls() {
-    final isActive = _cameraState == CameraState.recording ||
-        _cameraState == CameraState.analyzing;
+  // ─── MAIN AREA (Massive Ask & Analyze Buttons) ─────────────────────────
+  Widget _buildMainArea() {
+    final isActive = _cameraState == CameraState.recording || _cameraState == CameraState.analyzing;
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 32),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        crossAxisAlignment: CrossAxisAlignment.center,
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Column(
         children: [
-          // ─── Ask Button (left, 64×64) ────────────────
+          // Massive Ask Button
           Semantics(
             button: true,
-            label: 'Задать вопрос о том, что вы видите',
+            label: 'Ask WayFinder',
+            hint: 'Ask a question with voice',
             child: GestureDetector(
               onTap: isActive ? null : _openAssistant,
               child: Container(
-                width: AppSizes.touchPrimary,
-                height: AppSizes.touchPrimary,
+                width: double.infinity,
+                height: 100,
                 decoration: BoxDecoration(
-                  color: Colors.black.withOpacity(0.6),
-                  shape: BoxShape.circle,
-                  border: Border.all(color: AppTheme.accentPrimary.withOpacity(0.4)),
+                  color: AppTheme.accentPrimary.withOpacity(0.9),
+                  borderRadius: BorderRadius.circular(24),
+                  boxShadow: [
+                    BoxShadow(color: AppTheme.accentPrimary.withOpacity(0.4), blurRadius: 15, spreadRadius: 2),
+                  ],
                 ),
-                child: const Icon(Icons.mic_rounded,
-                    color: AppTheme.accentPrimary, size: 30),
+                child: const Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.mic_rounded, color: Colors.white, size: 40),
+                    SizedBox(width: 16),
+                    Text(
+                      'Ask WayFinder',
+                      style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
+          const SizedBox(height: 16),
 
-          // ─── Main Navigate Button (center, 80×80) ────────────────
+          // Massive Analyze Button
           Semantics(
             button: true,
-            label: isActive
-                ? 'Навигация активна. Пожалуйста, подождите.'
-                : 'Проанализировать окружение. Нажмите, чтобы начать.',
+            label: 'Analyze Surroundings',
+            hint: isActive ? 'Navigation active. Please wait.' : 'Get description of surroundings and obstacles',
             child: GestureDetector(
               onTap: isActive ? null : _captureAndAnalyze,
               child: AnimatedBuilder(
@@ -668,54 +666,121 @@ class _HomeCameraScreenState extends State<HomeCameraScreen>
                 builder: (ctx, child) {
                   final pulse = isActive ? _pulseController.value : 0.0;
                   return Container(
-                    width: AppSizes.touchHero,
-                    height: AppSizes.touchHero,
+                    width: double.infinity,
+                    height: 100,
                     decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      gradient: isActive
-                          ? AppTheme.dangerGradient
-                          : AppTheme.primaryGradient,
+                      color: isActive ? AppTheme.danger.withOpacity(0.9) : AppTheme.safe.withOpacity(0.9),
+                      borderRadius: BorderRadius.circular(24),
                       boxShadow: [
                         BoxShadow(
-                          color: (isActive
-                                  ? AppTheme.danger
-                                  : AppTheme.accentPrimary)
-                              .withOpacity(
-                                  isActive ? 0.3 + pulse * 0.4 : 0.4),
-                          blurRadius: isActive ? 20 + pulse * 20 : 20,
-                          spreadRadius: isActive ? pulse * 8 : 0,
+                          color: (isActive ? AppTheme.danger : AppTheme.safe).withOpacity(0.3 + pulse * 0.4),
+                          blurRadius: isActive ? 15 + pulse * 10 : 15,
+                          spreadRadius: isActive ? pulse * 5 : 2,
                         ),
                       ],
                     ),
-                    child: Icon(
-                      isActive
-                          ? Icons.pending_rounded
-                          : Icons.explore_rounded,
-                      color: Colors.white,
-                      size: 36,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(isActive ? Icons.pending_rounded : Icons.explore_rounded, color: Colors.white, size: 40),
+                        const SizedBox(width: 16),
+                        Text(
+                          isActive ? 'Analyzing...' : 'Analyze Surroundings',
+                          style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold),
+                        ),
+                      ],
                     ),
                   );
                 },
               ),
             ),
           ),
+        ],
+      ),
+    );
+  }
 
-          // ─── Settings Button (right, 56×56) ────────────────
-          Semantics(
-            button: true,
-            label: 'Открыть настройки',
-            child: GestureDetector(
-              onTap: () => Navigator.pushNamed(context, '/settings'),
-              child: Container(
-                width: AppSizes.touchSecondary,
-                height: AppSizes.touchSecondary,
-                decoration: BoxDecoration(
-                  color: Colors.black.withOpacity(0.6),
-                  shape: BoxShape.circle,
-                  border: Border.all(color: Colors.white.withOpacity(0.2)),
+  // ─── SAFETY AREA (Stop & Repeat Buttons) ───────────────────────────────
+  Widget _buildSafetyArea() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Row(
+        children: [
+          // Stop Speaking Button
+          Expanded(
+            child: Semantics(
+              button: true,
+              label: 'Stop Speaking',
+              hint: 'Immediately interrupt current voice message',
+              child: GestureDetector(
+                onTap: () {
+                  HapticPatterns.tap();
+                  _audio.stop();
+                },
+                child: Container(
+                  height: 64,
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.7),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: AppTheme.danger.withOpacity(0.6), width: 2),
+                  ),
+                  child: const Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.stop_circle_rounded, color: AppTheme.danger, size: 28),
+                      SizedBox(width: 10),
+                      Text(
+                        'Stop',
+                        style: TextStyle(color: AppTheme.danger, fontSize: 18, fontWeight: FontWeight.w600),
+                      ),
+                    ],
+                  ),
                 ),
-                child: const Icon(Icons.settings_rounded,
-                    color: AppTheme.textSecondary, size: 24),
+              ),
+            ),
+          ),
+          const SizedBox(width: 16),
+
+          // Repeat Button
+          Expanded(
+            child: Semantics(
+              button: true,
+              label: 'Repeat',
+              hint: 'Repeat last message',
+              child: GestureDetector(
+                onTap: () {
+                  HapticPatterns.tap();
+                  final nav = context.read<NavigationProvider>();
+                  if (nav.lastResult != null) {
+                    _audio.speakAnalysis(nav.lastResult!.rawText);
+                  } else {
+                    final assistant = context.read<AssistantProvider>();
+                    if (assistant.answer.isNotEmpty) {
+                      assistant.repeatAnswer();
+                    } else {
+                      _audio.speak('No messages to repeat.');
+                    }
+                  }
+                },
+                child: Container(
+                  height: 64,
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.7),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: AppTheme.textSecondary.withOpacity(0.6), width: 2),
+                  ),
+                  child: const Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.replay_rounded, color: Colors.white, size: 28),
+                      SizedBox(width: 10),
+                      Text(
+                        'Repeat',
+                        style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w600),
+                      ),
+                    ],
+                  ),
+                ),
               ),
             ),
           ),
@@ -724,3 +789,4 @@ class _HomeCameraScreenState extends State<HomeCameraScreen>
     );
   }
 }
+
