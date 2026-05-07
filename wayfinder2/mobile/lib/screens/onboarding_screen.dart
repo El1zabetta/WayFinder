@@ -24,18 +24,18 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
   final List<Map<String, dynamic>> _pages = [
     {
-      'title': 'WayFinder sees for you',
-      'body': 'Point your phone camera ahead. WayFinder will describe what is around you.',
+      'title': 'WayFinder видит за вас',
+      'body': 'Наведите камеру телефона перед собой. WayFinder опишет, что находится вокруг вас.',
       'icon': Icons.visibility_rounded,
     },
     {
-      'title': 'Safe navigation guidance',
-      'body': 'WayFinder tells you about obstacles and guides you with voice directions.',
+      'title': 'Безопасная навигация',
+      'body': 'WayFinder сообщает о препятствиях и дает голосовые указания по маршруту.',
       'icon': Icons.explore_rounded,
     },
     {
-      'title': 'Ask anything about the scene',
-      'body': 'Tap the microphone or say "Way Finder" to ask: "What is in front of me?"',
+      'title': 'Задавайте вопросы',
+      'body': 'Нажмите на микрофон или скажите "Way Finder", чтобы спросить: "Что передо мной?"',
       'icon': Icons.mic_rounded,
     },
   ];
@@ -86,11 +86,11 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               alignment: Alignment.topRight,
               child: Semantics(
                 button: true,
-                label: 'Skip introduction',
+                label: 'Пропустить введение',
                 child: TextButton(
                   onPressed: _completeOnboarding,
                   child: const Text(
-                    'Skip',
+                    'Пропустить',
                     style: TextStyle(color: AppTheme.textSecondary, fontSize: 16),
                   ),
                 ),
@@ -184,8 +184,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       }
                     },
                     label: _currentPage == _pages.length - 1
-                        ? 'Get Started'
-                        : 'Next',
+                        ? 'Начать'
+                        : 'Далее',
                   ),
                 ],
               ),

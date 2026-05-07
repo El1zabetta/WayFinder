@@ -22,20 +22,20 @@ class _AuthScreenState extends State<AuthScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      announceToScreenReader('Sign in with your Google account to continue.');
+      announceToScreenReader('Войдите в свой аккаунт Google, чтобы продолжить.');
     });
   }
 
   Future<void> _handleSignIn() async {
     final auth = context.read<AuthProvider>();
-    announceToScreenReader('Signing in...');
+    announceToScreenReader('Вход в аккаунт...');
     final success = await auth.signInWithGoogle();
     
     if (success && mounted) {
-      announceToScreenReader('Signed in successfully.');
+      announceToScreenReader('Успешный вход.');
       Navigator.pushReplacementNamed(context, '/home');
     } else if (!success && mounted && auth.error != null) {
-      announceToScreenReader('Sign-in failed. Please try again.');
+      announceToScreenReader('Ошибка входа. Пожалуйста, попробуйте снова.');
     }
   }
 
@@ -83,7 +83,7 @@ class _AuthScreenState extends State<AuthScreen> {
                   
                   // Tagline
                   const Text(
-                    'Your AI navigation assistant',
+                    'Ваш ИИ-помощник в навигации',
                     style: TextStyle(
                       color: AppTheme.textSecondary,
                       fontSize: 16,
@@ -105,7 +105,7 @@ class _AuthScreenState extends State<AuthScreen> {
                   else
                     AccessibleButton(
                       onTap: _handleSignIn,
-                      label: 'Sign in with Google',
+                      label: 'Войти через Google',
                       height: AppSizes.touchPrimary,
                       color: Colors.white,
                       textColor: Colors.black,
@@ -115,8 +115,8 @@ class _AuthScreenState extends State<AuthScreen> {
                   if (auth.error != null && !auth.isLoading) ...[
                     const SizedBox(height: 16),
                     ErrorStateWidget(
-                      message: 'Sign in failed. Please try again.',
-                      actionLabel: 'Retry',
+                      message: 'Ошибка входа. Пожалуйста, попробуйте снова.',
+                      actionLabel: 'Повторить',
                       onAction: _handleSignIn,
                     ),
                   ],
@@ -125,9 +125,9 @@ class _AuthScreenState extends State<AuthScreen> {
                   
                   // Privacy Note
                   Semantics(
-                    label: 'Your data stays private. We use your account only for sign-in.',
+                    label: 'Ваши данные под защитой. Мы используем аккаунт только для входа.',
                     child: const Text(
-                      'Your data stays private.\nWe use your account only for sign-in.',
+                      'Ваши данные под защитой.\nМы используем аккаунт только для входа.',
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         color: AppTheme.textMuted,

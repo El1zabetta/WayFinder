@@ -1,8 +1,9 @@
 /// WayFinder 3.0 — Permissions Screen
-/// Camera + Mic permissions with clear, accessible human explanations.
+/// Camera + Mic + Internet permissions with clear, accessible human explanations.
 
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../core/app_theme.dart';
 import '../core/accessibility.dart';
@@ -27,8 +28,8 @@ class _PermissionsScreenState extends State<PermissionsScreen> {
     _checkPermissions();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       announceToScreenReader(
-        'WayFinder needs access to your camera to see your surroundings, '
-        'and your microphone to hear your questions. Please allow access.',
+        'WayFinder требуется доступ к камере, чтобы видеть ваше окружение, '
+        'и к микрофону, чтобы слышать ваши вопросы. Пожалуйста, разрешите доступ.',
       );
     });
   }
@@ -46,10 +47,10 @@ class _PermissionsScreenState extends State<PermissionsScreen> {
     final status = await Permission.camera.request();
     setState(() => _cameraGranted = status.isGranted);
     if (status.isPermanentlyDenied) {
-      announceToScreenReader('Camera access is permanently denied. Please enable it in device settings.');
+      announceToScreenReader('Доступ к камере окончательно отклонен. Пожалуйста, включите его в настройках устройства.');
       openAppSettings();
     } else if (status.isGranted) {
-      announceToScreenReader('Camera access granted.');
+      announceToScreenReader('Доступ к камере разрешен.');
       HapticPatterns.success();
     }
   }
@@ -58,21 +59,37 @@ class _PermissionsScreenState extends State<PermissionsScreen> {
     final status = await Permission.microphone.request();
     setState(() => _micGranted = status.isGranted);
     if (status.isPermanentlyDenied) {
-      announceToScreenReader('Microphone access is permanently denied. Please enable it in device settings.');
+      announceToScreenReader('Доступ к микрофону окончательно отклонен. Пожалуйста, включите его в настройках устройства.');
       openAppSettings();
     } else if (status.isGranted) {
-      announceToScreenReader('Microphone access granted.');
+      announceToScreenReader('Доступ к микрофону разрешен.');
       HapticPatterns.success();
     }
   }
 
+  Future<void> _playWelcomeInstruction() async {
+    final prefs = await SharedPreferences.getInstance();
+    final voiceEnabled = prefs.getBool('voice_enabled') ?? true;
+    if (!voiceEnabled) return;
+
+    const instruction = 'Добро пожаловать в WayFinder. Наведите камеру перед собой. '
+        'Я буду сообщать о препятствиях и помогать ориентироваться. '
+        'Чтобы задать вопрос, скажите: WayFinder. '
+        'Приложение помогает с навигацией, но не заменяет трость, собаку-поводыря или вашу осторожность.';
+    
+    await prefs.setBool('has_heard_welcome', true);
+    announceToScreenReader(instruction);
+    _audio.speak(instruction);
+  }
+
   void _finish() {
     if (!_cameraGranted) {
-      announceToScreenReader('Camera access is required for WayFinder to work.');
-      _audio.speak('Camera access is required for WayFinder to work.');
+      announceToScreenReader('Доступ к камере обязателен для работы WayFinder.');
+      _audio.speak('Доступ к камере обязателен для работы WayFinder.');
       return;
     }
-    Navigator.pushReplacementNamed(context, '/home');
+    _playWelcomeInstruction();
+    Navigator.pushReplacementNamed(context, '/auth');
   }
 
   @override
@@ -80,7 +97,7 @@ class _PermissionsScreenState extends State<PermissionsScreen> {
     return Scaffold(
       backgroundColor: AppTheme.background,
       appBar: AppBar(
-        title: const Text('Permissions'),
+        title: const Text('Разрешения'),
         centerTitle: true,
         backgroundColor: Colors.transparent,
         automaticallyImplyLeading: false,
@@ -92,7 +109,7 @@ class _PermissionsScreenState extends State<PermissionsScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const Text(
-                'WayFinder needs access',
+                'WayFinder нужен доступ',
                 style: TextStyle(
                   color: AppTheme.textPrimary,
                   fontSize: 24,
@@ -104,8 +121,8 @@ class _PermissionsScreenState extends State<PermissionsScreen> {
               // Camera Permission
               _buildPermissionCard(
                 icon: Icons.camera_alt_rounded,
-                title: 'Camera',
-                description: "To see what's around you and detect obstacles.",
+                title: 'Камера',
+                description: 'Камера нужна, чтобы анализировать окружение и сообщать о препятствиях перед вами.',
                 isGranted: _cameraGranted,
                 onRequest: _requestCamera,
               ),
@@ -115,10 +132,19 @@ class _PermissionsScreenState extends State<PermissionsScreen> {
               // Microphone Permission
               _buildPermissionCard(
                 icon: Icons.mic_rounded,
-                title: 'Microphone',
-                description: 'To hear your questions and give voice answers.',
+                title: 'Микрофон',
+                description: 'Микрофон нужен, чтобы услышать wake word "WayFinder" и ваши голосовые вопросы.',
                 isGranted: _micGranted,
                 onRequest: _requestMic,
+              ),
+
+              const SizedBox(height: 24),
+
+              // Internet Info Card
+              _buildInfoCard(
+                icon: Icons.wifi_rounded,
+                title: 'Интернет',
+                description: 'Интернет нужен, чтобы отправить кадры на AI сервер и получить ответ.',
               ),
 
               const Spacer(),
@@ -126,7 +152,7 @@ class _PermissionsScreenState extends State<PermissionsScreen> {
               // Continue Button
               AccessibleButton(
                 onTap: _finish,
-                label: 'Continue',
+                label: 'Продолжить',
                 enabled: _cameraGranted, // Camera is strictly required
                 icon: Icons.arrow_forward_rounded,
               ),
@@ -135,7 +161,7 @@ class _PermissionsScreenState extends State<PermissionsScreen> {
                   padding: EdgeInsets.only(top: 16),
                   child: Center(
                     child: Text(
-                      'Camera is required to continue',
+                      'Для продолжения необходим доступ к камере',
                       style: TextStyle(color: AppTheme.danger, fontSize: 13),
                     ),
                   ),
@@ -192,7 +218,7 @@ class _PermissionsScreenState extends State<PermissionsScreen> {
           if (!isGranted)
             Semantics(
               button: true,
-              label: 'Allow $title access.',
+              label: 'Разрешить доступ к разделу $title.',
               child: GestureDetector(
                 onTap: onRequest,
                 child: Container(
@@ -204,7 +230,7 @@ class _PermissionsScreenState extends State<PermissionsScreen> {
                   ),
                   child: const Center(
                     child: Text(
-                      'Allow Access',
+                      'Разрешить доступ',
                       style: TextStyle(
                         color: AppTheme.accentPrimary,
                         fontWeight: FontWeight.w600,
@@ -215,6 +241,47 @@ class _PermissionsScreenState extends State<PermissionsScreen> {
                 ),
               ),
             ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInfoCard({
+    required IconData icon,
+    required String title,
+    required String description,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: AppTheme.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppTheme.glassBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, color: AppTheme.accentPrimary, size: 28),
+              const SizedBox(width: 12),
+              Text(
+                title,
+                style: const TextStyle(
+                  color: AppTheme.textPrimary,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const Spacer(),
+              const Icon(Icons.info_outline_rounded, color: AppTheme.textSecondary),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            description,
+            style: const TextStyle(color: AppTheme.textSecondary, fontSize: 15, height: 1.4),
+          ),
         ],
       ),
     );

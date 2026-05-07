@@ -39,7 +39,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      announceToScreenReader('Settings screen');
+      announceToScreenReader('Экран настроек');
     });
   }
 
@@ -51,13 +51,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
         backgroundColor: AppTheme.background,
         leading: Semantics(
           button: true,
-          label: 'Go back',
+          label: 'Назад',
           child: IconButton(
             onPressed: () => Navigator.pop(context),
             icon: const Icon(Icons.arrow_back_ios_rounded, color: AppTheme.textPrimary),
           ),
         ),
-        title: const Text('Settings'),
+        title: const Text('Настройки'),
         centerTitle: true,
       ),
       body: ListView(
@@ -65,47 +65,51 @@ class _SettingsScreenState extends State<SettingsScreen> {
         children: [
           // ─── History ──────────────────────────────
           _buildNavigationRow(
-            label: 'Session History',
-            subtitle: 'View your previous navigations and questions',
+            label: 'История сессий',
+            subtitle: 'Просмотр предыдущих маршрутов и вопросов',
             onTap: () => Navigator.pushNamed(context, '/history'),
           ),
           const SizedBox(height: 24),
 
           // ─── Account ─────────────────────────────
-          _buildSectionHeader('Account'),
+          _buildSectionHeader('Аккаунт'),
           _buildAccountCard(),
           const SizedBox(height: 24),
 
           // ─── Voice & Audio ───────────────────────
-          _buildSectionHeader('Voice & Audio'),
+          _buildSectionHeader('Голос и Аудио'),
           _buildSliderRow(
-            label: 'Voice Speed',
-            semanticLabel: 'Voice speed. Current value: ${(_voiceSpeed * 100).round()} percent',
+            label: 'Скорость речи',
+            semanticLabel: 'Скорость речи. Текущее значение: ${(_voiceSpeed * 100).round()} процентов',
             value: _voiceSpeed,
             min: 0.2,
             max: 1.0,
             onChanged: (v) {
               setState(() => _voiceSpeed = v);
-              SpatialAudioService().speak('This is my speaking speed.');
+              SpatialAudioService().speak('Это моя скорость речи.');
             },
           ),
           _buildSliderRow(
-            label: 'Speech Volume',
-            semanticLabel: 'Speech volume. Current value: ${(_speechVolume * 100).round()} percent',
+            label: 'Громкость речи',
+            semanticLabel: 'Громкость речи. Текущее значение: ${(_speechVolume * 100).round()} процентов',
             value: _speechVolume,
             min: 0.3,
             max: 1.0,
             onChanged: (v) => setState(() => _speechVolume = v),
           ),
           _buildDropdownRow(
-            label: 'Audio Cue Style',
-            value: _audioCueStyle,
-            options: ['Spoken', 'Tones', 'Both'],
-            onChanged: (v) => setState(() => _audioCueStyle = v!),
+            label: 'Стиль аудио-подсказок',
+            value: _audioCueStyle == 'Spoken' ? 'Голос' : (_audioCueStyle == 'Tones' ? 'Звуки' : 'Оба'),
+            options: ['Голос', 'Звуки', 'Оба'],
+            onChanged: (v) => setState(() {
+              if (v == 'Голос') _audioCueStyle = 'Spoken';
+              else if (v == 'Звуки') _audioCueStyle = 'Tones';
+              else _audioCueStyle = 'Both';
+            }),
           ),
           _buildToggleRow(
-            label: 'Haptic Feedback',
-            semanticLabel: 'Haptic feedback. Currently ${_hapticFeedback ? "on" : "off"}',
+            label: 'Виброотклик',
+            semanticLabel: 'Виброотклик. Сейчас ${_hapticFeedback ? "включен" : "выключен"}',
             value: _hapticFeedback,
             onChanged: (v) {
               setState(() => _hapticFeedback = v);
@@ -115,23 +119,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const SizedBox(height: 24),
 
           // ─── Navigation ──────────────────────────
-          _buildSectionHeader('Navigation'),
+          _buildSectionHeader('Навигация'),
           _buildToggleRow(
-            label: 'Auto-start navigation on launch',
-            semanticLabel: 'Auto start navigation. Currently ${_autoStart ? "on" : "off"}',
+            label: 'Автозапуск навигации при входе',
+            semanticLabel: 'Автозапуск навигации. Сейчас ${_autoStart ? "включен" : "выключен"}',
             value: _autoStart,
             onChanged: (v) => setState(() => _autoStart = v),
           ),
           _buildDropdownRow(
-            label: 'Recording Duration',
-            value: '${_recordDuration}s',
-            options: ['3s', '5s', '7s'],
+            label: 'Длительность записи',
+            value: '${_recordDuration}с',
+            options: ['3с', '5с', '7с'],
             onChanged: (v) => setState(() {
-              _recordDuration = int.parse(v!.replaceAll('s', ''));
+              _recordDuration = int.parse(v!.replaceAll('с', ''));
             }),
           ),
           _buildDropdownRow(
-            label: 'Language',
+            label: 'Язык',
             value: _language,
             options: ['English', 'Русский'],
             onChanged: (v) => setState(() => _language = v!),
@@ -139,21 +143,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const SizedBox(height: 24),
 
           // ─── System ──────────────────────────────
-          _buildSectionHeader('System'),
+          _buildSectionHeader('Система'),
           _buildNavigationRow(
-            label: 'System Status Dashboard',
-            subtitle: 'Backend, RynnBrain, DeepSeek health',
+            label: 'Статус системы',
+            subtitle: 'Состояние бэкенда и нейросетей',
             onTap: () => Navigator.pushNamed(context, '/system_status'),
           ),
           const SizedBox(height: 24),
 
           // ─── Accessibility ───────────────────────
-          _buildSectionHeader('Accessibility'),
+          _buildSectionHeader('Доступность'),
           _buildNavigationRow(
-            label: 'Accessibility Preferences',
-            subtitle: 'Text size, contrast, haptics, audio cues',
+            label: 'Настройки доступности',
+            subtitle: 'Размер текста, контрастность, виброотклик',
             onTap: () => Navigator.pushNamed(context, '/accessibility_prefs'),
           ),
+          _buildRepeatInstructionButton(),
           const SizedBox(height: 32),
 
           // ─── Sign Out ────────────────────────────
@@ -323,7 +328,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     color: AppTheme.textPrimary, fontSize: 15)),
           ),
           Semantics(
-            label: '$label, current value $value',
+            label: '$label, текущее значение $value',
             child: DropdownButton<String>(
               value: value,
               dropdownColor: AppTheme.surfaceElevated,
@@ -412,7 +417,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Widget _buildCheckConnectionButton() {
     return AccessibleButton(
       onTap: _checkConnection,
-      label: _isCheckingHealth ? 'Checking...' : 'Check Connection',
+      label: _isCheckingHealth ? 'Проверка...' : 'Проверить соединение',
       icon: Icons.wifi_find_rounded,
       color: AppTheme.surfaceElevated,
       textColor: AppTheme.textPrimary,
@@ -431,13 +436,65 @@ class _SettingsScreenState extends State<SettingsScreen> {
         const Duration(seconds: 10),
       );
       setState(() => _healthData = data);
-      announceToScreenReader('Backend is connected. System is healthy.');
+      announceToScreenReader('Сервер подключен. Система работает нормально.');
     } catch (e) {
       setState(() => _healthData = {'status': 'error', 'error': e.toString()});
-      announceToScreenReader('Backend connection failed.');
+      announceToScreenReader('Ошибка подключения к серверу.');
     } finally {
       setState(() => _isCheckingHealth = false);
     }
+  }
+
+  Widget _buildRepeatInstructionButton() {
+    return Semantics(
+      button: true,
+      label: 'Воспроизвести приветственную инструкцию снова',
+      child: GestureDetector(
+        onTap: () async {
+          HapticPatterns.tap();
+          announceToScreenReader('Воспроизведение приветственной инструкции.');
+          const instruction = 'Добро пожаловать в WayFinder. Наведите камеру перед собой. '
+              'Я буду сообщать о препятствиях и помогать ориентироваться. '
+              'Чтобы задать вопрос, скажите: WayFinder. '
+              'Приложение помогает с навигацией, но не заменяет трость, собаку-поводыря или вашу осторожность.';
+          SpatialAudioService().speak(instruction);
+        },
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: AppTheme.surface,
+            borderRadius: BorderRadius.circular(AppSizes.radiusM),
+            border: Border.all(color: AppTheme.glassBorder),
+          ),
+          child: const Row(
+            children: [
+              Icon(Icons.volume_up_rounded, color: AppTheme.accentPrimary, size: 24),
+              SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Повторить приветственную инструкцию',
+                      style: TextStyle(
+                          color: AppTheme.textPrimary,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600),
+                    ),
+                    SizedBox(height: 2),
+                    Text(
+                      'Озвучить приветственную инструкцию повторно',
+                      style: TextStyle(color: AppTheme.textMuted, fontSize: 13),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(Icons.play_arrow_rounded, color: AppTheme.textMuted),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   Widget _buildHealthStatus() {
@@ -463,7 +520,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   color: color, size: 20),
               const SizedBox(width: 8),
               Text(
-                isOk ? 'System Healthy' : 'Connection Error',
+                isOk ? 'Система исправна' : 'Ошибка подключения',
                 style: TextStyle(
                     color: color, fontSize: 15, fontWeight: FontWeight.w600),
               ),
@@ -472,8 +529,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
           if (isOk) ...[
             const SizedBox(height: 8),
             Text(
-              'Engine: ${_healthData!['engine_mode'] ?? 'unknown'}\n'
-              'GPU: ${_healthData!['gpu_available'] == true ? _healthData!['gpu_name'] : 'None (Mock mode)'}',
+              'Движок: ${_healthData!['engine_mode'] ?? 'неизвестно'}\n'
+              'GPU: ${_healthData!['gpu_available'] == true ? _healthData!['gpu_name'] : 'Нет (режим симуляции)'}',
               style: const TextStyle(color: AppTheme.textMuted, fontSize: 13, height: 1.5),
             ),
           ],
@@ -485,13 +542,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Widget _buildSignOutButton() {
     return Semantics(
       button: true,
-      label: 'Sign out of your account',
+      label: 'Выйти из своего аккаунта',
       child: GestureDetector(
         onTap: () async {
           HapticPatterns.tap();
           final auth = context.read<AuthProvider>();
           await auth.signOut();
-          announceToScreenReader('Signed out.');
+          announceToScreenReader('Выход из системы выполнен.');
           if (mounted) {
             Navigator.pushReplacementNamed(context, '/auth');
           }
@@ -505,7 +562,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           child: const Center(
             child: Text(
-              'Sign Out',
+              'Выйти',
               style: TextStyle(
                 color: AppTheme.danger,
                 fontSize: 16,

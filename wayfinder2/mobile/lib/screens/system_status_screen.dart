@@ -26,14 +26,14 @@ class _SystemStatusScreenState extends State<SystemStatusScreen> {
 
   Future<void> _fetchHealth() async {
     setState(() => _loading = true);
-    announceToScreenReader('Checking system status...');
+    announceToScreenReader('Проверка состояния системы...');
     try {
       final data = await WayFinderApi.health();
       setState(() => _health = data);
-      announceToScreenReader('System status retrieved successfully.');
+      announceToScreenReader('Состояние системы успешно получено.');
     } catch (e) {
       setState(() => _health = {'status': 'error', 'error': e.toString()});
-      announceToScreenReader('Failed to retrieve system status.');
+      announceToScreenReader('Не удалось получить состояние системы.');
     } finally {
       setState(() => _loading = false);
     }
@@ -44,56 +44,58 @@ class _SystemStatusScreenState extends State<SystemStatusScreen> {
     return Scaffold(
       backgroundColor: AppTheme.background,
       appBar: AppBar(
-        title: const Text('System Status'),
+        title: const Text('Статус системы'),
         centerTitle: true,
         backgroundColor: Colors.transparent,
       ),
       body: _loading
-          ? const Center(child: CircularProgressIndicator(color: AppTheme.accentPrimary))
+          ? const Center(
+              child: CircularProgressIndicator(color: AppTheme.accentPrimary))
           : ListView(
               padding: const EdgeInsets.all(24),
               children: [
                 if (_health != null && _health!['status'] == 'ok') ...[
                   _buildMetricCard(
-                    title: 'WayFinder Backend Core',
-                    status: 'Connected',
+                    title: 'Ядро бэкенда WayFinder',
+                    status: 'Подключено',
                     isHealthy: true,
                     icon: Icons.cloud_done_rounded,
                   ),
                   const SizedBox(height: 16),
                   _buildMetricCard(
-                    title: 'Vision Pipeline (RynnBrain)',
-                    status: _health!['engine_mode']?.toString().toUpperCase() ?? 'ACTIVE',
+                    title: 'Визуальный конвейер (RynnBrain)',
+                    status: _health!['engine_mode']?.toString().toUpperCase() ??
+                        'АКТИВЕН',
                     isHealthy: true,
                     icon: Icons.visibility_rounded,
                   ),
                   const SizedBox(height: 16),
                   _buildMetricCard(
-                    title: 'Language Model (DeepSeek)',
-                    status: 'ACTIVE', // Implicitly working if backend is OK
+                    title: 'Языковая модель (DeepSeek)',
+                    status: 'АКТИВНА', // Implicitly working if backend is OK
                     isHealthy: true,
                     icon: Icons.psychology_rounded,
                   ),
                   const SizedBox(height: 16),
                   _buildMetricCard(
-                    title: 'Server GPU Acceleration',
-                    status: _health!['gpu_available'] == true 
-                              ? _health!['gpu_name'] 
-                              : 'None detected',
+                    title: 'GPU ускорение сервера',
+                    status: _health!['gpu_available'] == true
+                        ? _health!['gpu_name']
+                        : 'Не обнаружено',
                     isHealthy: _health!['gpu_available'] == true,
                     icon: Icons.memory_rounded,
                   ),
                 ] else ...[
                   ErrorStateWidget(
-                    message: 'Backend server is unreachable.',
-                    actionLabel: 'Check connection again',
+                    message: 'Сервер бэкенда недоступен.',
+                    actionLabel: 'Проверить соединение снова',
                     onAction: _fetchHealth,
                   ),
                 ],
                 const SizedBox(height: 48),
                 AccessibleButton(
                   onTap: _fetchHealth,
-                  label: 'Refresh Status',
+                  label: 'Обновить статус',
                   icon: Icons.refresh_rounded,
                   color: AppTheme.surfaceElevated,
                   textColor: AppTheme.textPrimary,
@@ -112,7 +114,7 @@ class _SystemStatusScreenState extends State<SystemStatusScreen> {
     final color = isHealthy ? AppTheme.safe : AppTheme.warning;
 
     return Semantics(
-      label: '$title status: $status',
+      label: 'Статус $title: $status',
       child: Container(
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(

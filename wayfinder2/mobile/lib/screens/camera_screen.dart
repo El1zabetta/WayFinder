@@ -117,7 +117,7 @@ class _CameraScreenState extends State<CameraScreen>
 
       // Immediate voice feedback
       final audio = SpatialAudioService();
-      await audio.speak("Analyzing scene...");
+      await audio.speak("Анализ сцены...");
 
       final file = File(videoFile.path);
       final navProvider = context.read<NavigationProvider>();
@@ -190,7 +190,7 @@ class _CameraScreenState extends State<CameraScreen>
             CircularProgressIndicator(color: AppTheme.accentPrimary),
             SizedBox(height: 16),
             Text(
-              'Initializing camera...',
+              'Инициализация камеры...',
               style: TextStyle(color: AppTheme.textSecondary, fontSize: 16),
             ),
           ],
@@ -216,7 +216,7 @@ class _CameraScreenState extends State<CameraScreen>
 
   Widget _buildTopBar() {
     final mode = _currentMode ?? 'nav';
-    final modeLabel = mode == 'cop' ? 'Safety Mode · CoP' : 'Navigation · Nav';
+    final modeLabel = mode == 'cop' ? 'Режим безопасности · CoP' : 'Навигация · Nav';
     final modeColor = mode == 'cop' ? AppTheme.warning : AppTheme.accentPrimary;
 
     return Padding(
@@ -224,18 +224,22 @@ class _CameraScreenState extends State<CameraScreen>
       child: Row(
         children: [
           // Back button
-          GestureDetector(
-            onTap: () => Navigator.pop(context),
-            child: Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                color: Colors.black.withOpacity(0.5),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.white.withOpacity(0.15)),
+          Semantics(
+            button: true,
+            label: 'Вернуться назад',
+            child: GestureDetector(
+              onTap: () => Navigator.pop(context),
+              child: Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: Colors.black.withOpacity(0.5),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.white.withOpacity(0.15)),
+                ),
+                child: const Icon(Icons.arrow_back_ios_new_rounded,
+                    color: Colors.white, size: 20),
               ),
-              child: const Icon(Icons.arrow_back_ios_new_rounded,
-                  color: Colors.white, size: 20),
             ),
           ),
           const SizedBox(width: 12),
@@ -292,7 +296,7 @@ class _CameraScreenState extends State<CameraScreen>
                   Icon(Icons.fiber_manual_record_rounded,
                       color: AppTheme.danger, size: 14),
                   SizedBox(width: 6),
-                  Text('REC 3s',
+                  Text('ЗАПИСЬ 3с',
                       style: TextStyle(
                           color: AppTheme.danger,
                           fontWeight: FontWeight.w600,
@@ -339,7 +343,7 @@ class _CameraScreenState extends State<CameraScreen>
                   ),
                   const SizedBox(width: 14),
                   Text(
-                    'RynnBrain 2B analyzing...',
+                    'RynnBrain 2B анализирует...',
                     style: Theme.of(ctx).textTheme.bodyMedium,
                   ),
                 ],
@@ -390,7 +394,7 @@ class _CameraScreenState extends State<CameraScreen>
                         size: 14, color: AppTheme.accentPrimary.withOpacity(0.7)),
                     const SizedBox(width: 4),
                     Text(
-                      '${(result.confidence * 100).toStringAsFixed(0)}% confidence',
+                      'Уверенность: ${(result.confidence * 100).toStringAsFixed(0)}%',
                       style: const TextStyle(
                         color: AppTheme.textMuted,
                         fontSize: 12,
@@ -413,12 +417,82 @@ class _CameraScreenState extends State<CameraScreen>
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           // Mode toggle
-          GestureDetector(
-            onTap: () {
-              setState(() {
-                _currentMode = _currentMode == 'cop' ? 'nav' : 'cop';
-              });
-            },
+          Semantics(
+            button: true,
+            label: _currentMode == 'cop'
+                ? 'Переключить на режим навигации'
+                : 'Переключить на режим безопасности',
+            child: GestureDetector(
+              onTap: () {
+                setState(() {
+                  _currentMode = _currentMode == 'cop' ? 'nav' : 'cop';
+                });
+              },
+              child: Container(
+                width: 56,
+                height: 56,
+                decoration: BoxDecoration(
+                  color: Colors.black.withOpacity(0.5),
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.white.withOpacity(0.2)),
+                ),
+                child: Icon(
+                  _currentMode == 'cop'
+                      ? Icons.navigation_rounded
+                      : Icons.shield_rounded,
+                  color: Colors.white,
+                  size: 26,
+                ),
+              ),
+            ),
+          ),
+
+          // Main capture button (large, accessible)
+          Semantics(
+            button: true,
+            label: _isRecording || _isAnalyzing
+                ? 'Остановить анализ'
+                : 'Начать запись и анализ сцены',
+            child: GestureDetector(
+              onTap: _captureAndAnalyze,
+              child: AnimatedBuilder(
+                animation: _recordingPulse,
+                builder: (ctx, child) {
+                  final isActive = _isRecording || _isAnalyzing;
+                  return Container(
+                    width: 80,
+                    height: 80,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: isActive
+                          ? AppTheme.dangerGradient
+                          : AppTheme.primaryGradient,
+                      boxShadow: [
+                        BoxShadow(
+                          color: (isActive ? AppTheme.danger : AppTheme.accentPrimary)
+                              .withOpacity(isActive
+                                  ? 0.3 + _recordingPulse.value * 0.4
+                                  : 0.5),
+                          blurRadius: isActive ? 20 + _recordingPulse.value * 20 : 20,
+                          spreadRadius: isActive ? _recordingPulse.value * 8 : 0,
+                        ),
+                      ],
+                    ),
+                    child: Icon(
+                      isActive ? Icons.stop_rounded : Icons.videocam_rounded,
+                      color: Colors.white,
+                      size: 36,
+                    ),
+                  );
+                },
+              ),
+            ),
+          ),
+
+          // Gallery / image pick placeholder
+          Semantics(
+            button: true,
+            label: 'Открыть галерею',
             child: Container(
               width: 56,
               height: 56,
@@ -427,58 +501,9 @@ class _CameraScreenState extends State<CameraScreen>
                 shape: BoxShape.circle,
                 border: Border.all(color: Colors.white.withOpacity(0.2)),
               ),
-              child: Icon(
-                _currentMode == 'cop'
-                    ? Icons.navigation_rounded
-                    : Icons.shield_rounded,
-                color: Colors.white,
-                size: 26,
-              ),
+              child: const Icon(Icons.photo_library_rounded,
+                  color: Colors.white, size: 26),
             ),
-          ),
-
-          // Main capture button (large, accessible)
-          GestureDetector(
-            onTap: _captureAndAnalyze,
-            child: AnimatedBuilder(
-              animation: _recordingPulse,
-              builder: (ctx, child) {
-                final isActive = _isRecording || _isAnalyzing;
-                return Container(
-                  width: 80,
-                  height: 80,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: isActive ? AppTheme.dangerGradient : AppTheme.primaryGradient,
-                    boxShadow: [
-                      BoxShadow(
-                        color: (isActive ? AppTheme.danger : AppTheme.accentPrimary).withOpacity(
-                            isActive ? 0.3 + _recordingPulse.value * 0.4 : 0.5),
-                        blurRadius: isActive ? 20 + _recordingPulse.value * 20 : 20,
-                        spreadRadius: isActive ? _recordingPulse.value * 8 : 0,
-                      ),
-                    ],
-                  ),
-                  child: Icon(
-                    isActive ? Icons.stop_rounded : Icons.videocam_rounded,
-                    color: Colors.white,
-                    size: 36,
-                  ),
-                );
-              },
-            ),
-          ),
-
-          // Gallery / image pick placeholder
-          Container(
-            width: 56,
-            height: 56,
-            decoration: BoxDecoration(
-              color: Colors.black.withOpacity(0.5),
-              shape: BoxShape.circle,
-              border: Border.all(color: Colors.white.withOpacity(0.2)),
-            ),
-            child: const Icon(Icons.photo_library_rounded, color: Colors.white, size: 26),
           ),
         ],
       ),

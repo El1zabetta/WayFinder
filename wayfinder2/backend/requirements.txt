@@ -16,6 +16,7 @@ transformers==4.57.1
 torch>=2.7.0
 accelerate>=1.11.0
 pillow>=10.0.0
+opencv-python>=4.8.0
 
 # Flash Attention (significant speedup on CUDA, requires CUDA 12+)
 # # flash-attn>=2.6.3

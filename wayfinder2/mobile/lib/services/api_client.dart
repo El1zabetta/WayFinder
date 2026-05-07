@@ -10,6 +10,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:http/http.dart' as http;
 import 'package:logger/logger.dart';
 
+import '../core/app_config.dart';
+
 final _log = Logger(printer: PrettyPrinter(methodCount: 0));
 
 /// Result from any RynnBrain analysis call
@@ -149,7 +151,7 @@ class SearchResult {
 
 /// API Client — communicates with Django backend
 class WayFinderApi {
-  static String baseUrl = 'https://wayfinder-ai.com/api/v2';
+  static String get baseUrl => AppConfig.baseUrl;
 
   static const Duration _timeout = Duration(seconds: 60);
 
@@ -215,7 +217,7 @@ class WayFinderApi {
     } on HttpException catch (_) {
       throw ApiException.network();
     } on FormatException catch (_) {
-      throw ApiException.server('The server returned an unreadable response.');
+      throw ApiException.server('Сервер вернул нечитаемый ответ.');
     }
   }
 
@@ -224,7 +226,7 @@ class WayFinderApi {
   /// Analyze video clip with RynnBrain-2B
   static Future<RynnBrainResult> analyzeVideo(
     File videoFile, {
-    String query = 'Analyze this scene for safe navigation.',
+    String query = 'Проанализируй эту сцену для безопасной навигации.',
     String mode = 'nav',
   }) async {
     _log.d('analyzeVideo: mode=$mode');
@@ -239,7 +241,7 @@ class WayFinderApi {
   /// Analyze single image
   static Future<RynnBrainResult> analyzeImage(
     File imageFile, {
-    String query = 'Describe this scene and identify hazards.',
+    String query = 'Опиши эту сцену и выяви опасности.',
     String mode = 'cop',
   }) async {
     _log.d('analyzeImage: mode=$mode');
@@ -262,18 +264,18 @@ class WayFinderApi {
       {'destination': destination},
       videoFile: videoFile,
     );
-    return RynnBrainResult(
-      mode: 'nav',
-      rawText: json['guidance_text'] ?? '',
-      navigationAction: json['action'],
-      audioCues: (json['audio_cues'] as List? ?? [])
-          .map((a) => AudioCue.fromJson(a))
-          .toList(),
-      threats: (json['obstacles'] as List? ?? [])
-          .map((t) => ThreatInfo.fromJson(t))
-          .toList(),
-      confidence: (json['confidence'] as num?)?.toDouble() ?? 0.0,
-    );
+    // Ensure the mode is set for RynnBrainResult.fromJson
+    if (json['mode'] == null) json['mode'] = 'nav';
+    if (json['raw_text'] == null && json['guidance_text'] != null) {
+      json['raw_text'] = json['guidance_text'];
+    }
+    if (json['navigation_action'] == null && json['action'] != null) {
+      json['navigation_action'] = json['action'];
+    }
+    if (json['threats'] == null && json['obstacles'] != null) {
+      json['threats'] = json['obstacles'];
+    }
+    return RynnBrainResult.fromJson(json);
   }
 
   /// Detect safety threats (RynnBrain-CoP)
@@ -336,7 +338,7 @@ class WayFinderApi {
     } on HttpException catch (_) {
       throw ApiException.network();
     } on FormatException catch (_) {
-      throw ApiException.server('The server returned an unreadable response.');
+      throw ApiException.server('Сервер вернул нечитаемый ответ.');
     }
   }
 
@@ -349,13 +351,13 @@ class WayFinderApi {
 
     if (response.statusCode >= 500) {
       _log.e('Server error: ${response.statusCode}');
-      throw ApiException.server('The server encountered an error. Please try again later.');
+      throw ApiException.server('На сервере произошла ошибка. Пожалуйста, попробуйте позже.');
     }
 
     if (response.statusCode != 200) {
       _log.e('API error ${response.statusCode}: ${response.body}');
       // Try to extract a clean error message from backend JSON
-      String msg = 'Something went wrong.';
+      String msg = 'Что-то пошло не так.';
       try {
         final body = json.decode(response.body);
         if (body is Map && body['error'] != null) msg = body['error'];
@@ -366,7 +368,7 @@ class WayFinderApi {
     try {
       return json.decode(response.body) as Map<String, dynamic>;
     } on FormatException {
-      throw ApiException.server('The server returned an unreadable response.');
+      throw ApiException.server('Сервер вернул нечитаемый ответ.');
     }
   }
 
@@ -478,21 +480,21 @@ class ApiException implements Exception {
   /// Auth failure — token expired or missing
   factory ApiException.auth() => ApiException(
         401,
-        'Your session has expired. Please sign in again.',
+        'Ваша сессия истекла. Пожалуйста, войдите снова.',
         errorType: ApiErrorType.auth,
       );
 
   /// No internet / connection error
   factory ApiException.network() => ApiException(
         0,
-        'No internet connection. Check your network and try again.',
+        'Нет подключения к интернету. Проверьте сеть и попробуйте снова.',
         errorType: ApiErrorType.network,
       );
 
   /// Request timed out
   factory ApiException.timeout() => ApiException(
         0,
-        'The request timed out. The server may be busy, please try again.',
+        'Время ожидания запроса истекло. Сервер может быть занят, попробуйте еще раз.',
         errorType: ApiErrorType.timeout,
       );
 

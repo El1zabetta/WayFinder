@@ -9,6 +9,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:logger/logger.dart';
 
+import '../core/accessibility.dart';
 import '../services/api_client.dart';
 import '../services/spatial_audio_service.dart';
 import '../services/offline_cache_service.dart';
@@ -23,6 +24,8 @@ enum AssistantState {
   done,
   error,
   offline,
+  wakeWordListening,
+  wakeWordDetected,
 }
 
 class AssistantProvider extends ChangeNotifier {
@@ -49,6 +52,46 @@ class AssistantProvider extends ChangeNotifier {
       _state == AssistantState.listening ||
       _state == AssistantState.processing ||
       _state == AssistantState.answering;
+
+  String get stateText {
+    switch (_state) {
+      case AssistantState.idle:
+        return 'Wake word выключен';
+      case AssistantState.wakeWordListening:
+        return 'Слушаю слово WayFinder';
+      case AssistantState.wakeWordDetected:
+        return 'WayFinder активирован';
+      case AssistantState.listening:
+        return 'Слушаю вопрос';
+      case AssistantState.processing:
+        return 'Отправляю вопрос';
+      case AssistantState.answering:
+        return 'Ответ готов';
+      case AssistantState.done:
+        return 'Ответ озвучен';
+      case AssistantState.error:
+        return 'Ошибка';
+      case AssistantState.offline:
+        return 'Оффлайн';
+    }
+  }
+
+  void setIdle() {
+    _setState(AssistantState.idle);
+  }
+
+  void setWakeWordListening() {
+    _setState(AssistantState.wakeWordListening);
+  }
+
+  void setWakeWordDetected() {
+    _setState(AssistantState.wakeWordDetected);
+    HapticPatterns.success();
+  }
+
+  void setListening() {
+    _setState(AssistantState.listening);
+  }
 
   /// Set the transcript from speech recognition
   void setTranscript(String text) {
@@ -86,7 +129,7 @@ class AssistantProvider extends ChangeNotifier {
       // Speak the answer — prefix with uncertainty if low confidence
       String spokenAnswer = result.answer;
       if (result.confidence < 0.5 && result.confidence > 0.0) {
-        spokenAnswer = "I'm not fully sure, but $spokenAnswer";
+        spokenAnswer = "Я не совсем уверен, но $spokenAnswer";
       }
       await _audio.speak(spokenAnswer);
 
@@ -103,18 +146,18 @@ class AssistantProvider extends ChangeNotifier {
         if (cachedAnswer != null) {
           _answer = cachedAnswer;
           _confidence = 0.0;
-          _errorMessage = 'Offline mode. Showing cached answer.';
+          _errorMessage = 'Оффлайн режим. Показываю сохраненный ответ.';
           _setState(AssistantState.offline);
           await _audio.speak(
-            'Server unavailable. From my memory: $cachedAnswer',
+            'Сервер недоступен. Из моей памяти: $cachedAnswer',
           );
           return;
         } else {
-          _errorMessage = 'Offline. No cached answer for this question.';
+          _errorMessage = 'Оффлайн. Нет сохраненного ответа на этот вопрос.';
           _setState(AssistantState.offline);
           await _audio.speak(
-            'Server unavailable. I don\'t have a cached answer for this question. '
-            'Please try again when you have internet.',
+            'Сервер недоступен. У меня нет сохраненного ответа на этот вопрос. '
+            'Пожалуйста, попробуйте еще раз, когда появится интернет.',
           );
           return;
         }
@@ -126,17 +169,17 @@ class AssistantProvider extends ChangeNotifier {
 
       // Speak a clear, specific error message
       if (e.isAuth) {
-        await _audio.speak('Your session has expired. Please sign in again.');
+        await _audio.speak('Ваша сессия истекла. Пожалуйста, войдите снова.');
       } else {
-        await _audio.speak("I couldn't answer that right now. Please try again.");
+        await _audio.speak("Я не могу ответить на это прямо сейчас. Пожалуйста, попробуйте еще раз.");
       }
     } catch (e) {
       _log.e('Ask-Wayfinder unexpected error: $e');
-      _errorMessage = 'An unexpected error occurred. Please try again.';
+      _errorMessage = 'Произошла непредвиденная ошибка. Пожалуйста, попробуйте еще раз.';
       _isAuthError = false;
       _answer = '';
       _setState(AssistantState.error);
-      await _audio.speak("Something went wrong. Please try again.");
+      await _audio.speak("Что-то пошло не так. Пожалуйста, попробуйте еще раз.");
     }
   }
 

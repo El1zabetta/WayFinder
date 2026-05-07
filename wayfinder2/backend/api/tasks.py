@@ -12,16 +12,17 @@ logger = logging.getLogger(__name__)
 
 
 @shared_task(bind=True, max_retries=0)
-def process_video_frame(self, frame_b64: str, mode_str: str, query: str, room_group_name: str, enqueue_time: float):
+def process_video_frame(self, frame_b64: str, mode_str: str, query: str, room_group_name: str, enqueue_time: float, client_sent_at: float = 0, received_at: float = 0):
     """
     Celery task to run RynnBrain inference on a single frame from the WebSocket.
     """
     t_start = time.monotonic()
+    inference_started_at = time.time() * 1000
     wait_time = t_start - enqueue_time
 
-    # If the frame has been waiting in the queue for too long (> 2 seconds), drop it
+    # If the frame has been waiting in the queue for too long (> 1 second), drop it
     # to prevent a massive backlog of outdated frames building up.
-    if wait_time > 2.0:
+    if wait_time > 1.0:
         logger.warning(f"Dropping frame: waited {wait_time:.1f}s in queue.")
         return
 
@@ -42,7 +43,10 @@ def process_video_frame(self, frame_b64: str, mode_str: str, query: str, room_gr
             eng.initialize(settings.RYNNBRAIN_MODEL_PATH)
 
         resp = eng.infer(frames=[img], query=query, mode=mode)
-        latency_ms = round((time.monotonic() - t_start) * 1000, 1)
+        t_finished = time.monotonic()
+        inference_finished_at = time.time() * 1000
+        inference_ms = round((t_finished - t_start) * 1000, 1)
+        total_latency_ms = round((time.time() * 1000 - client_sent_at), 1) if client_sent_at else 0
 
         result_payload = {
             "type": "send_analysis",
@@ -63,8 +67,14 @@ def process_video_frame(self, frame_b64: str, mode_str: str, query: str, room_gr
                     for p in resp.spatial_points
                 ],
                 "confidence": resp.confidence,
-                "latency_ms": latency_ms,
-                "queue_wait_ms": round(wait_time * 1000, 1)
+                "latency_ms": inference_ms,
+                "queue_wait_ms": round(wait_time * 1000, 1),
+                "total_latency_ms": total_latency_ms,
+                "received_at": received_at,
+                "inference_started_at": inference_started_at,
+                "inference_finished_at": inference_finished_at,
+                "response_sent_at": time.time() * 1000,
+                "processed_at": time.time()
             }
         }
 

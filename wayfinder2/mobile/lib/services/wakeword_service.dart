@@ -1,6 +1,7 @@
 /// WayFinder 3.0 — Wakeword Service
 /// Uses Porcupine to listen for the "WayFinder" (.ppn file) wake word offline.
 
+import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:porcupine_flutter/porcupine_manager.dart';
 import 'package:porcupine_flutter/porcupine_error.dart';
@@ -30,16 +31,20 @@ class WakewordService extends ChangeNotifier {
       // NOTE: Picovoice requires an AccessKey from console.picovoice.ai
       const accessKey = Secrets.picovoiceAccessKey; 
 
-      // We use the custom WayFinder keyword model
+      // Use platform-specific .ppn file paths
+      final String keywordPath = Platform.isAndroid 
+          ? "assets/models/wayfinder_android.ppn" 
+          : "assets/models/wayfinder_ios.ppn";
+
       _porcupineManager = await PorcupineManager.fromKeywordPaths(
         accessKey,
-        ["assets/models/way_finder.ppn"],
+        [keywordPath],
         _wakeWordCallback,
       );
 
       _isInitialized = true;
       notifyListeners();
-      _log.i("Porcupine Wakeword initialized successfully.");
+      _log.i("Porcupine Wakeword initialized successfully with $keywordPath");
 
     } on PorcupineException catch (e) {
       _log.e("Failed to initialize Porcupine: \${e.message}");

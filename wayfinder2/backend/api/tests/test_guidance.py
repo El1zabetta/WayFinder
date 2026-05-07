@@ -97,7 +97,8 @@ class TestGuidanceGenerator(unittest.TestCase):
             confidence=0.8,
         )
         nav = generate_guidance(facts)
-        self.assertIn("forward", nav.primary_instruction.lower())
+        # Updated for Russian localization: "Похоже, путь свободен. Двигайтесь осторожно."
+        self.assertIn("путь свободен", nav.primary_instruction.lower())
         self.assertEqual(nav.alert_level, "LOW")
 
     def test_obstacle_guidance(self):
@@ -114,10 +115,10 @@ class TestGuidanceGenerator(unittest.TestCase):
             confidence=0.7,
         )
         nav = generate_guidance(facts)
-        # Should mention the obstacle
+        # Should mention the obstacle or caution in Russian
         inst_lower = nav.primary_instruction.lower()
         self.assertTrue(
-            "chair" in inst_lower or "caution" in inst_lower or "stop" in inst_lower,
+            "chair" in inst_lower or "внимание" in inst_lower or "остановитесь" in inst_lower,
             f"Expected obstacle mention in: '{nav.primary_instruction}'"
         )
 
@@ -131,8 +132,9 @@ class TestGuidanceGenerator(unittest.TestCase):
         )
         nav = generate_guidance(facts)
         inst_lower = nav.primary_instruction.lower()
+        # Updated for Russian: "Не вижу свободного пути. Остановитесь..."
         self.assertTrue(
-            "stop" in inst_lower or "no clear" in inst_lower,
+            "остановитесь" in inst_lower or "не вижу" in inst_lower,
             f"Expected stop in: '{nav.primary_instruction}'"
         )
 

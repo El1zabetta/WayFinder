@@ -66,7 +66,7 @@ class _ThreatPainter extends CustomPainter {
         backgroundColor: Color(0xAAFF4444),
       );
       final tp = TextPainter(
-        text: const TextSpan(text: '⚠ OBSTACLE', style: textStyle),
+        text: const TextSpan(text: '⚠ ПРЕПЯТСТВИЕ', style: textStyle),
         textDirection: TextDirection.ltr,
       )..layout();
       tp.paint(canvas, Offset(left + 4, top + 4));

@@ -21,9 +21,11 @@ import 'package:provider/provider.dart';
 import '../core/app_theme.dart';
 import '../core/accessibility.dart';
 import '../core/constants.dart';
+import '../providers/assistant_provider.dart';
 import '../providers/navigation_provider.dart';
 import '../providers/safety_provider.dart';
 import '../services/spatial_audio_service.dart';
+import '../services/frame_streaming_service.dart';
 import '../services/wakeword_service.dart';
 import '../widgets/glass_card.dart';
 import '../widgets/threat_overlay.dart';
@@ -63,17 +65,28 @@ class _HomeCameraScreenState extends State<HomeCameraScreen>
     // Announce screen to screen reader
     WidgetsBinding.instance.addPostFrameCallback((_) {
       announceToScreenReader(
-        'WayFinder camera screen. Tap the center button to analyze your surroundings. '
-        'Tap the microphone on the left to ask a question, or say Way Finder.',
+        'Экран камеры WayFinder. Нажмите центральную кнопку, чтобы проанализировать окружение. '
+        'Нажмите на микрофон слева, чтобы задать вопрос, или скажите: Way Finder.',
       );
 
       final wakeword = context.read<WakewordService>();
       wakeword.onWakewordDetected = () {
         if (_cameraState == CameraState.idle) {
+          final assistant = context.read<AssistantProvider>();
+          assistant.setWakeWordDetected();
           _openAssistant();
         }
       };
       wakeword.startListening();
+
+      final streamer = context.read<FrameStreamingService>();
+      streamer.connect();
+      streamer.onLatencyChanged = (isHigh) {
+        if (isHigh && _cameraState == CameraState.idle) {
+          _audio.speak('Анализирую, двигайтесь осторожно.');
+          announceToScreenReader('Высокая задержка сети. Анализирую, двигайтесь осторожно.');
+        }
+      };
     });
   }
 
@@ -82,8 +95,8 @@ class _HomeCameraScreenState extends State<HomeCameraScreen>
       _cameras = await availableCameras();
       if (_cameras == null || _cameras!.isEmpty) {
         setState(() => _cameraState = CameraState.error);
-        _audio.speak('No camera found on this device.');
-        announceToScreenReader('No camera available.');
+        _audio.speak('Камера не найдена на этом устройстве.');
+        announceToScreenReader('Камера недоступна.');
         return;
       }
 
@@ -101,18 +114,18 @@ class _HomeCameraScreenState extends State<HomeCameraScreen>
       if (mounted) {
         setState(() => _cameraState = CameraState.error);
         if (e.code == 'CameraAccessDenied' || e.code == 'CameraAccessDeniedWithoutPrompt' || e.code == 'CameraAccessRestricted') {
-          _audio.speak('Camera permission was denied. Please open settings and allow camera access for WayFinder.');
-          announceToScreenReader('Camera permission denied. Open device settings to allow camera access.');
+          _audio.speak('Доступ к камере запрещен. Пожалуйста, откройте настройки и разрешите доступ для WayFinder.');
+          announceToScreenReader('Доступ к камере запрещен. Откройте настройки устройства.');
         } else {
-          _audio.speak('Camera could not start. Please try again.');
-          announceToScreenReader('Camera error. Tap the retry button.');
+          _audio.speak('Не удалось запустить камеру. Попробуйте еще раз.');
+          announceToScreenReader('Ошибка камеры. Нажмите кнопку повтора.');
         }
       }
     } catch (e) {
       debugPrint('Camera init error: $e');
       if (mounted) {
         setState(() => _cameraState = CameraState.error);
-        _audio.speak('Camera could not start.');
+        _audio.speak('Не удалось запустить камеру.');
       }
     }
   }
@@ -152,11 +165,11 @@ class _HomeCameraScreenState extends State<HomeCameraScreen>
 
     setState(() => _cameraState = CameraState.recording);
     HapticPatterns.recordingStart();
-    announceToScreenReader('Recording scene for 3 seconds.');
+    announceToScreenReader('Записываю окружение. Пожалуйста, подождите.');
 
     try {
       // Immediate voice feedback
-      _audio.speak('Analyzing scene...');
+      _audio.speak('Анализирую...');
 
       // Record 3-second clip
       await _controller!.startVideoRecording();
@@ -165,7 +178,7 @@ class _HomeCameraScreenState extends State<HomeCameraScreen>
 
       HapticPatterns.recordingEnd();
       setState(() => _cameraState = CameraState.analyzing);
-      announceToScreenReader('Processing...');
+      announceToScreenReader('Обработка...');
 
       // Send to backend
       final file = File(videoFile.path);
@@ -195,10 +208,11 @@ class _HomeCameraScreenState extends State<HomeCameraScreen>
         setState(() => _cameraState = CameraState.error);
 
         // Determine user-friendly message
-        String spokenError = 'There was a problem. Tap to try again.';
+        String spokenError = 'Произошла ошибка. Попробуйте еще раз.';
         if (e is CameraException) {
-          spokenError = 'Camera error. Please try again.';
+          spokenError = 'Ошибка камеры. Пожалуйста, попробуйте еще раз.';
         }
+        
         // NavigationProvider already speaks its own error via TTS,
         // so only speak for camera-level errors here
         final nav = context.read<NavigationProvider>();
@@ -253,6 +267,7 @@ class _HomeCameraScreenState extends State<HomeCameraScreen>
             child: Column(
               children: [
                 _buildStatusBar(),
+                _buildAskButton(), // Large button for manual "Ask mode"
                 const Spacer(),
                 _buildAudioCompass(),
                 const SizedBox(height: 12),
@@ -275,8 +290,8 @@ class _HomeCameraScreenState extends State<HomeCameraScreen>
       child: Center(
         child: Semantics(
           label: isError
-              ? 'Camera unavailable. Double tap to retry.'
-              : 'Camera is loading',
+              ? 'Камера недоступна. Нажмите дважды, чтобы повторить.'
+              : 'Камера загружается',
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -287,7 +302,7 @@ class _HomeCameraScreenState extends State<HomeCameraScreen>
                 const CircularProgressIndicator(color: AppTheme.accentPrimary),
               const SizedBox(height: 16),
               Text(
-                isError ? 'Camera unavailable' : 'Initializing camera...',
+                isError ? 'Камера недоступна' : 'Инициализация камеры...',
                 style: const TextStyle(
                     color: AppTheme.textSecondary, fontSize: 16),
               ),
@@ -306,7 +321,7 @@ class _HomeCameraScreenState extends State<HomeCameraScreen>
                       color: AppTheme.accentPrimary,
                       borderRadius: BorderRadius.circular(14),
                     ),
-                    child: const Text('Retry Camera',
+                    child: const Text('Повторить',
                         style: TextStyle(
                             color: Colors.white,
                             fontSize: 16,
@@ -347,7 +362,7 @@ class _HomeCameraScreenState extends State<HomeCameraScreen>
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
       child: Semantics(
         liveRegion: true,
-        label: 'Status: ${statusConfig.text}',
+        label: 'Статус: ${statusConfig.text}',
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
           decoration: BoxDecoration(
@@ -383,14 +398,90 @@ class _HomeCameraScreenState extends State<HomeCameraScreen>
     );
   }
 
+  Widget _buildAskButton() {
+    return Padding(
+      padding: const EdgeInsets.only(top: 24),
+      child: Semantics(
+        button: true,
+        label: 'Спросить WayFinder. Нажмите, чтобы задать вопрос голосом.',
+        child: GestureDetector(
+          onTap: () {
+            HapticPatterns.success();
+            _openAssistant();
+          },
+          child: Container(
+            width: 240,
+            height: 240,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: RadialGradient(
+                colors: [
+                  AppTheme.accentPrimary.withOpacity(0.4),
+                  AppTheme.accentPrimary.withOpacity(0.1),
+                  Colors.transparent,
+                ],
+                stops: const [0.0, 0.6, 1.0],
+              ),
+              border: Border.all(
+                color: AppTheme.accentPrimary.withOpacity(0.3),
+                width: 2,
+              ),
+            ),
+            child: Center(
+              child: Container(
+                width: 180,
+                height: 180,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: AppTheme.accentPrimary.withOpacity(0.8),
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppTheme.accentPrimary.withOpacity(0.5),
+                      blurRadius: 30,
+                      spreadRadius: 5,
+                    ),
+                  ],
+                ),
+                child: const Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.mic_rounded, size: 56, color: Colors.white),
+                    SizedBox(height: 12),
+                    Text(
+                      'Спросить\nWayFinder',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.5,
+                        height: 1.2,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ).animate(onPlay: (controller) => controller.repeat(reverse: true))
+          .scale(
+            duration: 2.seconds,
+            begin: const Offset(1.0, 1.0),
+            end: const Offset(1.05, 1.05),
+            curve: Curves.easeInOut,
+          ),
+      ),
+    );
+  }
+
   ({String text, Color color}) _getStatusConfig() {
     return switch (_cameraState) {
-      CameraState.idle => (text: 'Ready', color: AppTheme.safe),
-      CameraState.recording => (text: 'Recording...', color: AppTheme.danger),
-      CameraState.analyzing => (text: 'Analyzing...', color: AppTheme.accentPrimary),
-      CameraState.speaking => (text: 'Speaking...', color: AppTheme.accentTeal),
-      CameraState.error => (text: 'Error', color: AppTheme.danger),
-      CameraState.offline => (text: 'Offline', color: AppTheme.textMuted),
+      CameraState.idle => (text: 'Готов', color: AppTheme.safe),
+      CameraState.recording => (text: 'Слушаю...', color: AppTheme.danger),
+      CameraState.analyzing => (text: 'Анализирую...', color: AppTheme.accentPrimary),
+      CameraState.speaking => (text: 'Говорю...', color: AppTheme.accentTeal),
+      CameraState.error => (text: 'Ошибка', color: AppTheme.danger),
+      CameraState.offline => (text: 'Оффлайн', color: AppTheme.textMuted),
     };
   }
 
@@ -429,7 +520,7 @@ class _HomeCameraScreenState extends State<HomeCameraScreen>
                   ),
                   const SizedBox(width: 14),
                   Text(
-                    'Analyzing your surroundings...',
+                    'Анализирую окружение...',
                     style: Theme.of(ctx).textTheme.bodyMedium,
                   ),
                 ],
@@ -472,7 +563,7 @@ class _HomeCameraScreenState extends State<HomeCameraScreen>
           padding: const EdgeInsets.symmetric(horizontal: 20),
           child: Semantics(
             liveRegion: true,
-            label: 'Navigation guidance: ${result.rawText}',
+            label: 'Указания по навигации: ${result.rawText}',
             child: GlassCard(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -517,7 +608,7 @@ class _HomeCameraScreenState extends State<HomeCameraScreen>
                           color: AppTheme.accentPrimary.withOpacity(0.7)),
                       const SizedBox(width: 4),
                       Text(
-                        '${(result.confidence * 100).toStringAsFixed(0)}% confidence',
+                        'Уверенность: ${(result.confidence * 100).toStringAsFixed(0)}%',
                         style: const TextStyle(
                           color: AppTheme.textMuted,
                           fontSize: 12,
@@ -547,7 +638,7 @@ class _HomeCameraScreenState extends State<HomeCameraScreen>
           // ─── Ask Button (left, 64×64) ────────────────
           Semantics(
             button: true,
-            label: 'Ask a question about what you see',
+            label: 'Задать вопрос о том, что вы видите',
             child: GestureDetector(
               onTap: isActive ? null : _openAssistant,
               child: Container(
@@ -568,8 +659,8 @@ class _HomeCameraScreenState extends State<HomeCameraScreen>
           Semantics(
             button: true,
             label: isActive
-                ? 'Navigation is active. Please wait.'
-                : 'Analyze your surroundings. Tap to start.',
+                ? 'Навигация активна. Пожалуйста, подождите.'
+                : 'Проанализировать окружение. Нажмите, чтобы начать.',
             child: GestureDetector(
               onTap: isActive ? null : _captureAndAnalyze,
               child: AnimatedBuilder(
@@ -612,7 +703,7 @@ class _HomeCameraScreenState extends State<HomeCameraScreen>
           // ─── Settings Button (right, 56×56) ────────────────
           Semantics(
             button: true,
-            label: 'Open settings',
+            label: 'Открыть настройки',
             child: GestureDetector(
               onTap: () => Navigator.pushNamed(context, '/settings'),
               child: Container(

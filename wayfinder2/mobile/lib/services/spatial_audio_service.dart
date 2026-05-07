@@ -26,8 +26,8 @@ class SpatialAudioService {
   Future<void> _init() async {
     _tts = FlutterTts();
 
-    // Set default to English, but we'll dynamic switch in _ensureLanguage
-    await _tts.setLanguage('en-US');
+    // Set default to Russian
+    await _tts.setLanguage('ru-RU');
     await _tts.setSpeechRate(0.5); 
     await _tts.setVolume(1.0);
     await _tts.setPitch(1.0);
@@ -92,7 +92,7 @@ class SpatialAudioService {
     for (final threat in threats) {
       final dir = _aziToWord(threat.azimuth);
       await speak(
-        'Warning! Obstacle $dir.',
+        'Внимание! Препятствие $dir.',
         azimuth: threat.azimuth,
         priority: 'HIGH',
       );
@@ -104,10 +104,10 @@ class SpatialAudioService {
   Future<void> announceNavAction(String? action) async {
     if (action == null) return;
     final Map<String, String> actionPhrases = {
-      'MOVE_FORWARD': 'Move forward.',
-      'TURN_LEFT': 'Turn left.',
-      'TURN_RIGHT': 'Turn right.',
-      'STOP': 'Stop. Hold position.',
+      'MOVE_FORWARD': 'Двигайтесь вперед.',
+      'TURN_LEFT': 'Поверните налево.',
+      'TURN_RIGHT': 'Поверните направо.',
+      'STOP': 'Стоп. Оставайтесь на месте.',
     };
     final phrase = actionPhrases[action] ?? action;
     await speak(phrase, azimuth: 0.0, priority: 'HIGH');
@@ -116,7 +116,7 @@ class SpatialAudioService {
   /// Object found announcement with direction.
   Future<void> announceObjectFound(String objectName, double azimuth) async {
     final dir = _aziToWord(azimuth);
-    await speak('$objectName found $dir.', azimuth: azimuth, priority: 'HIGH');
+    await speak('$objectName найден $dir.', azimuth: azimuth, priority: 'HIGH');
   }
 
   Future<void> stop() async {
@@ -132,11 +132,11 @@ class SpatialAudioService {
   }
 
   String _aziToWord(double azimuth) {
-    if (azimuth < -30) return 'to your left';
-    if (azimuth > 30) return 'to your right';
-    if (azimuth < -10) return 'slightly left';
-    if (azimuth > 10) return 'slightly right';
-    return 'ahead';
+    if (azimuth < -30) return 'слева от вас';
+    if (azimuth > 30) return 'справа от вас';
+    if (azimuth < -10) return 'чуть левее';
+    if (azimuth > 10) return 'чуть правее';
+    return 'прямо перед вами';
   }
 
   int _priorityValue(String p) {

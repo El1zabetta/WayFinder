@@ -46,17 +46,17 @@ class _ConversationDetailScreenState extends State<ConversationDetailScreen> {
           _loading = false;
         });
         announceToScreenReader(
-          'Conversation detail. You asked: ${item.question}. '
-          'Answer: ${item.answer}',
+          'Детали разговора. Вы спросили: ${item.question}. '
+          'Ответ: ${item.answer}',
         );
       }
     } catch (e) {
       if (mounted) {
         setState(() {
           _loading = false;
-          _error = 'Could not load this conversation.';
+          _error = 'Не удалось загрузить этот разговор.';
         });
-        announceToScreenReader('Error loading conversation detail.');
+        announceToScreenReader('Ошибка загрузки деталей разговора.');
       }
     }
   }
@@ -66,7 +66,7 @@ class _ConversationDetailScreenState extends State<ConversationDetailScreen> {
     return Scaffold(
       backgroundColor: AppTheme.background,
       appBar: AppBar(
-        title: const Text('Session Detail'),
+        title: const Text('Детали сессии'),
         centerTitle: true,
         backgroundColor: Colors.transparent,
       ),
@@ -77,7 +77,7 @@ class _ConversationDetailScreenState extends State<ConversationDetailScreen> {
   Widget _buildBody() {
     if (_loading) {
       return Semantics(
-        label: 'Loading conversation detail',
+        label: 'Загрузка деталей разговора',
         child: const Center(
           child: CircularProgressIndicator(color: AppTheme.accentPrimary),
         ),
@@ -95,7 +95,7 @@ class _ConversationDetailScreenState extends State<ConversationDetailScreen> {
                   size: 48, color: AppTheme.textMuted),
               const SizedBox(height: 16),
               Text(
-                _error ?? 'Conversation not found.',
+                _error ?? 'Разговор не найден.',
                 textAlign: TextAlign.center,
                 style: const TextStyle(
                     color: AppTheme.textSecondary, fontSize: 16),
@@ -107,7 +107,7 @@ class _ConversationDetailScreenState extends State<ConversationDetailScreen> {
     }
 
     final item = _item!;
-    final timeStr = DateFormat.yMMMd().add_Hm().format(item.createdAt);
+    final timeStr = DateFormat.yMMMd('ru_RU').add_Hm().format(item.createdAt);
 
     return Padding(
       padding: const EdgeInsets.all(24),
@@ -116,7 +116,7 @@ class _ConversationDetailScreenState extends State<ConversationDetailScreen> {
         children: [
           // Timestamp
           Semantics(
-            label: 'Asked on $timeStr',
+            label: 'Спрошено $timeStr',
             child: Text(
               timeStr,
               style: const TextStyle(color: AppTheme.textMuted, fontSize: 13),
@@ -138,7 +138,7 @@ class _ConversationDetailScreenState extends State<ConversationDetailScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text(
-                  'You asked:',
+                  'Вы спросили:',
                   style: TextStyle(
                       color: AppTheme.textMuted,
                       fontSize: 13,
@@ -173,7 +173,7 @@ class _ConversationDetailScreenState extends State<ConversationDetailScreen> {
                         color: AppTheme.safe, size: 18),
                     SizedBox(width: 8),
                     Text(
-                      'WayFinder answered:',
+                      'WayFinder ответил:',
                       style: TextStyle(
                           color: AppTheme.safe,
                           fontSize: 13,
@@ -198,7 +198,7 @@ class _ConversationDetailScreenState extends State<ConversationDetailScreen> {
             Padding(
               padding: const EdgeInsets.only(top: 12),
               child: Text(
-                '${(item.confidence * 100).toStringAsFixed(0)}% confidence • ${item.source ?? "model"}',
+                'Уверенность: ${(item.confidence * 100).toStringAsFixed(0)}% • ${item.source ?? "модель"}',
                 style: const TextStyle(
                     color: AppTheme.textMuted, fontSize: 12),
               ),
@@ -209,12 +209,12 @@ class _ConversationDetailScreenState extends State<ConversationDetailScreen> {
           // Replay Audio
           Semantics(
             button: true,
-            label: 'Replay the answer out loud',
+            label: 'Повторно воспроизвести ответ вслух',
             child: AccessibleButton(
               onTap: () {
                 SpatialAudioService().speak(item.answer);
               },
-              label: 'Replay Audio Answer',
+              label: 'Воспроизвести ответ',
               icon: Icons.volume_up_rounded,
               color: AppTheme.surfaceElevated,
               textColor: AppTheme.textPrimary,

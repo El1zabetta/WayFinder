@@ -99,14 +99,14 @@ class OfflineCacheService {
 
   /// Hardcoded baseline safety hints for when server is completely unreachable
   static const List<String> offlineSafetyHints = [
-    'Move slowly and use your cane to scan the path ahead.',
-    'Listen for traffic sounds before crossing any road.',
-    'Stay close to the wall or building edge for orientation.',
-    'If unsure, stop and ask someone nearby for help.',
-    'Avoid stepping off curbs without checking for obstacles.',
-    'Pay attention to ground texture changes — they may indicate stairs or ramps.',
-    'Keep your phone charged for emergency calls.',
-    'Use pedestrian crossings with audio signals when available.',
+    'Двигайтесь медленно и используйте трость для сканирования пути впереди.',
+    'Слушайте звуки транспорта перед тем, как переходить дорогу.',
+    'Держитесь ближе к стене или краю здания для ориентации.',
+    'Если не уверены, остановитесь и попросите помощи у прохожих.',
+    'Не сходите с бордюра, не проверив наличие препятствий.',
+    'Обращайте внимание на изменение текстуры земли — это могут быть лестницы или пандусы.',
+    'Держите телефон заряженным для экстренных вызовов.',
+    'Используйте пешеходные переходы со звуковыми сигналами, если они доступны.',
   ];
 
   /// Get a random offline safety hint

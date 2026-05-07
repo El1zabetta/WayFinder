@@ -23,6 +23,8 @@ class NavigationProvider extends ChangeNotifier {
   bool _isAuthError = false;
   bool _isNetworkError = false;
   bool _isOffline = false;
+  String _lastGuidance = '';
+  DateTime? _lastGuidanceTime;
 
   final SpatialAudioService _audio = SpatialAudioService();
   final OfflineCacheService _cache = OfflineCacheService();
@@ -68,7 +70,15 @@ class NavigationProvider extends ChangeNotifier {
       });
 
       // 1. Narrative description (what's in front)
-      await _audio.speakAnalysis(result.rawText);
+      // De-duplicate guidance: only speak if changed or > 5s passed
+      final now = DateTime.now();
+      if (result.rawText != _lastGuidance || 
+          _lastGuidanceTime == null || 
+          now.difference(_lastGuidanceTime!).inSeconds > 5) {
+        await _audio.speakAnalysis(result.rawText);
+        _lastGuidance = result.rawText;
+        _lastGuidanceTime = now;
+      }
 
       // 2. Immediate threats alert
       if (result.hasThreats) {
@@ -95,19 +105,19 @@ class NavigationProvider extends ChangeNotifier {
         _isOffline = true;
         final cachedText = await _cache.getCachedNavigationText();
         if (cachedText != null && cachedText.isNotEmpty) {
-          _errorMessage = 'Offline mode. Showing last analysis.';
+          _errorMessage = 'Оффлайн режим. Показываю последний анализ.';
           _setState(NavigationState.offline);
           await _audio.speak(
-            'Server unavailable. Using last known analysis. $cachedText',
+            'Сервер недоступен. Использую последний известный анализ. $cachedText',
           );
           return;
         } else {
           // No cache — use safety hint
           final hint = OfflineCacheService.getRandomHint();
-          _errorMessage = 'Offline. No cached data.';
+          _errorMessage = 'Оффлайн. Нет сохраненных данных.';
           _setState(NavigationState.offline);
           await _audio.speak(
-            'Server unavailable. No cached analysis available. Safety tip: $hint',
+            'Сервер недоступен. Сохраненный анализ отсутствует. Совет по безопасности: $hint',
           );
           return;
         }
@@ -118,17 +128,17 @@ class NavigationProvider extends ChangeNotifier {
 
       // Speak specific error
       if (e.isAuth) {
-        await _audio.speak('Session expired. Please sign in again to continue.');
+        await _audio.speak('Сессия истекла. Пожалуйста, войдите снова, чтобы продолжить.');
       } else {
-        await _audio.speak('Could not analyze the scene. Tap to try again.');
+        await _audio.speak('Не удалось проанализировать сцену. Нажмите, чтобы попробовать еще раз.');
       }
     } catch (e) {
       _log.e('Navigation analysis unexpected error: $e');
-      _errorMessage = 'Scene analysis failed. Tap to try again.';
+      _errorMessage = 'Ошибка анализа сцены. Нажмите, чтобы попробовать еще раз.';
       _isAuthError = false;
       _isNetworkError = false;
       _setState(NavigationState.error);
-      await _audio.speak('There was a problem. Tap to try again.');
+      await _audio.speak('Произошла проблема. Нажмите, чтобы попробовать еще раз.');
     }
   }
 
@@ -147,8 +157,8 @@ class NavigationProvider extends ChangeNotifier {
 
       await _audio.speak(
         alertLevel == 'LOW'
-            ? 'Area is clear. No immediate threats detected.'
-            : 'Alert level: $alertLevel. Exercise caution.',
+            ? 'Путь свободен. Прямых угроз не обнаружено.'
+            : 'Уровень опасности: $alertLevel. Будьте осторожны.',
         azimuth: 0.0,
         priority: alertLevel,
       );
@@ -165,16 +175,16 @@ class NavigationProvider extends ChangeNotifier {
         _isOffline = true;
         final hint = OfflineCacheService.getRandomHint();
         _setState(NavigationState.offline);
-        await _audio.speak('Offline. Cannot run safety check. Safety tip: $hint');
+        await _audio.speak('Оффлайн. Невозможно проверить безопасность. Совет по безопасности: $hint');
       } else {
         _setState(NavigationState.error);
-        await _audio.speak('Safety check failed. Please try again.');
+        await _audio.speak('Ошибка проверки безопасности. Пожалуйста, попробуйте еще раз.');
       }
     } catch (e) {
       _log.e('Safety check failed: $e');
-      _errorMessage = 'Safety check failed. Please try again.';
+      _errorMessage = 'Ошибка проверки безопасности. Пожалуйста, попробуйте еще раз.';
       _setState(NavigationState.error);
-      await _audio.speak('Safety check failed.');
+      await _audio.speak('Ошибка проверки безопасности.');
     }
   }
 

@@ -12,6 +12,7 @@ import 'package:camera/camera.dart';
 import 'package:flutter/foundation.dart';
 import 'package:logger/logger.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
+import '../core/app_config.dart';
 
 final _log = Logger(printer: PrettyPrinter(methodCount: 0));
 
@@ -51,23 +52,34 @@ class FrameStreamingService extends ChangeNotifier {
   static const double _diffThreshold = 0.15; // 15% change threshold
   static const Duration _reconnectDelay = Duration(seconds: 3);
   static const Duration _pingInterval = Duration(seconds: 15);
+  static const int _maxPendingFrames = 2; // Max frames in flight
+  static const int _latencyThresholdMs = 2000; // 2 seconds threshold for high latency
 
   WebSocketChannel? _channel;
   StreamSubscription? _subscription;
   Timer? _pingTimer;
   Timer? _reconnectTimer;
+  Timer? _latencyTimer;
 
   bool _connected = false;
   bool _shouldReconnect = true;
   String _wsUrl = '';
   Uint8List? _previousFrame;
+  Uint8List? _lastFrameBytes; // Cache for 'ask' mode context
   int _framesSent = 0;
   int _framesSkipped = 0;
+  int _pendingFrames = 0; // Throttling: frames waiting for analysis
+  DateTime? _lastFrameTime;
+  double _currentFps = 5.0; // Starting FPS
+  bool _isHighLatency = false;
 
   // Public state
   bool get isConnected => _connected;
   int get framesSent => _framesSent;
   int get framesSkipped => _framesSkipped;
+  bool get isHighLatency => _isHighLatency;
+  double get currentFps => _currentFps;
+  Uint8List? get lastFrameBytes => _lastFrameBytes;
   double get compressionRatio => _framesSent + _framesSkipped > 0
       ? _framesSkipped / (_framesSent + _framesSkipped)
       : 0.0;
@@ -75,13 +87,11 @@ class FrameStreamingService extends ChangeNotifier {
   // Callbacks
   void Function(StreamAnalysis)? onAnalysis;
   void Function(String)? onError;
+  void Function(bool)? onLatencyChanged;
 
   /// Connect to the WebSocket server
-  Future<void> connect(String baseUrl) async {
-    _wsUrl = baseUrl
-        .replaceFirst('https://', 'wss://')
-        .replaceFirst('http://', 'ws://')
-        .replaceFirst('/api/v2', '');
+  Future<void> connect() async {
+    _wsUrl = AppConfig.wsUrl;
     _wsUrl = '$_wsUrl$_wsPath';
 
     _shouldReconnect = true;
@@ -138,10 +148,28 @@ class FrameStreamingService extends ChangeNotifier {
   }) async {
     if (!_connected || _channel == null) return;
 
+    // Respect adaptive FPS
+    final now = DateTime.now();
+    if (_lastFrameTime != null) {
+      final interval = Duration(milliseconds: (1000 / _currentFps).round());
+      if (now.difference(_lastFrameTime!) < interval) {
+        return; // Skip frame to maintain FPS
+      }
+    }
+    _lastFrameTime = now;
+
+    // Client-side throttling: don't overwhelm backend
+    if (_pendingFrames >= _maxPendingFrames) {
+      _framesSkipped++;
+      return;
+    }
+
     try {
       // Convert CameraImage to JPEG bytes (compressed)
       final jpegBytes = await compute(_compressFrame, cameraImage);
       if (jpegBytes == null || jpegBytes.isEmpty) return;
+
+      _lastFrameBytes = jpegBytes; // Cache for ask mode
 
       // Frame differencing — skip if change < 15%
       if (_previousFrame != null && !_isFrameChanged(jpegBytes)) {
@@ -157,9 +185,11 @@ class FrameStreamingService extends ChangeNotifier {
         'data': b64,
         'mode': mode,
         'query': query,
+        'sent_at': DateTime.now().millisecondsSinceEpoch,
       }));
 
       _framesSent++;
+      _pendingFrames++;
     } catch (e) {
       _log.w('sendFrame error: $e');
     }
@@ -227,15 +257,21 @@ class FrameStreamingService extends ChangeNotifier {
 
       switch (type) {
         case 'analysis':
+          _pendingFrames = (_pendingFrames - 1).clamp(0, _maxPendingFrames);
           final analysis = StreamAnalysis.fromJson(data);
+          
+          // Adaptive FPS & Latency logic
+          _updateLatencyMetrics(analysis.latencyMs);
+          
           onAnalysis?.call(analysis);
           break;
         case 'error':
+          _pendingFrames = (_pendingFrames - 1).clamp(0, _maxPendingFrames);
           _log.e('Server error: ${data['message']}');
           onError?.call(data['message'] ?? 'Unknown server error');
           break;
         case 'pong':
-          // Keepalive acknowledged
+          _log.d('WebSocket pong received');
           break;
         case 'connected':
           _log.i('Server: ${data['model']} v${data['version']}');
@@ -247,6 +283,26 @@ class FrameStreamingService extends ChangeNotifier {
     } catch (e) {
       _log.w('Message parse error: $e');
     }
+  }
+
+  void _updateLatencyMetrics(double latencyMs) {
+    final bool wasHighLatency = _isHighLatency;
+    _isHighLatency = latencyMs > _latencyThresholdMs;
+
+    if (wasHighLatency != _isHighLatency && onLatencyChanged != null) {
+      onLatencyChanged!(_isHighLatency);
+    }
+
+    // Adaptive FPS: 
+    // - If latency is low (< 500ms), increase FPS up to 10
+    // - If latency is high (> 1000ms), decrease FPS down to 1
+    if (latencyMs < 500) {
+      _currentFps = (_currentFps + 0.5).clamp(1.0, 10.0);
+    } else if (latencyMs > 1000) {
+      _currentFps = (_currentFps - 1.0).clamp(1.0, 10.0);
+    }
+    
+    _log.d('Latency: ${latencyMs}ms, Adaptive FPS: $_currentFps');
   }
 
   void _onWsError(dynamic error) {

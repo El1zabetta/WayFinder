@@ -24,7 +24,7 @@ class _AccessibilityPrefsScreenState extends State<AccessibilityPrefsScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      announceToScreenReader('Accessibility preferences screen.');
+      announceToScreenReader('Экран настроек специальных возможностей.');
     });
   }
 
@@ -33,44 +33,44 @@ class _AccessibilityPrefsScreenState extends State<AccessibilityPrefsScreen> {
     return Scaffold(
       backgroundColor: AppTheme.background,
       appBar: AppBar(
-        title: const Text('Accessibility'),
+        title: const Text('Специальные возможности'),
         centerTitle: true,
         backgroundColor: Colors.transparent,
       ),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          _buildSectionHeader('Display'),
+          _buildSectionHeader('Экран'),
           _buildToggleRow(
-            label: 'High Contrast Mode',
+            label: 'Высококонтрастный режим',
             value: _highContrast,
             onChanged: (v) => setState(() => _highContrast = v),
           ),
           _buildSliderRow(
-            label: 'Text Size',
+            label: 'Размер текста',
             value: _textSizeMultiplier,
             min: 1.0,
             max: 2.5,
-            semanticLabel: 'Text size multiplier. Current value: ${_textSizeMultiplier.toStringAsFixed(1)}x',
+            semanticLabel: 'Множитель размера текста. Текущее значение: ${_textSizeMultiplier.toStringAsFixed(1)}x',
             onChanged: (v) => setState(() => _textSizeMultiplier = v),
           ),
           
           const SizedBox(height: 32),
           
-          _buildSectionHeader('Feedback & Cues'),
+          _buildSectionHeader('Обратная связь'),
           _buildSliderRow(
-            label: 'Haptic Intensity',
+            label: 'Интенсивность тактильной отдачи',
             value: _hapticLevel,
             min: 0.0,
             max: 1.0,
-            semanticLabel: 'Haptic intensity. Current value: ${(_hapticLevel * 100).round()}%',
+            semanticLabel: 'Интенсивность тактильной отдачи. Текущее значение: ${(_hapticLevel * 100).round()}%',
             onChanged: (v) {
               setState(() => _hapticLevel = v);
               HapticPatterns.tap();
             },
           ),
           _buildToggleRow(
-            label: 'Verbose Screen Reader Hints',
+            label: 'Подробные подсказки экранного диктора',
             value: _screenReaderHints,
             onChanged: (v) => setState(() => _screenReaderHints = v),
           ),

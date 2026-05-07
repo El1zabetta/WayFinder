@@ -43,17 +43,17 @@ class _HistoryScreenState extends State<HistoryScreen> {
         });
         announceToScreenReader(
           items.isEmpty
-              ? 'History screen. No past questions yet.'
-              : 'History screen. ${items.length} past questions loaded.',
+              ? 'Экран истории. Вопросов пока нет.'
+              : 'Экран истории. Загружено ${items.length} вопросов.',
         );
       }
     } catch (e) {
       if (mounted) {
         setState(() {
           _loading = false;
-          _error = 'Could not load history. Check your connection.';
+          _error = 'Не удалось загрузить историю. Проверьте соединение.';
         });
-        announceToScreenReader('Error loading history.');
+        announceToScreenReader('Ошибка загрузки истории.');
       }
     }
   }
@@ -66,14 +66,14 @@ class _HistoryScreenState extends State<HistoryScreen> {
         backgroundColor: AppTheme.background,
         leading: Semantics(
           button: true,
-          label: 'Go back',
+          label: 'Вернуться назад',
           child: IconButton(
             onPressed: () => Navigator.pop(context),
             icon: const Icon(Icons.arrow_back_ios_rounded,
                 color: AppTheme.textPrimary),
           ),
         ),
-        title: const Text('History'),
+        title: const Text('История'),
         centerTitle: true,
       ),
       body: _buildBody(),
@@ -83,7 +83,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
   Widget _buildBody() {
     if (_loading) {
       return Semantics(
-        label: 'Loading history',
+        label: 'Загрузка истории',
         child: const Center(
           child: CircularProgressIndicator(color: AppTheme.accentPrimary),
         ),
@@ -109,7 +109,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
               const SizedBox(height: 24),
               Semantics(
                 button: true,
-                label: 'Retry loading history',
+                label: 'Повторить загрузку истории',
                 child: GestureDetector(
                   onTap: _loadHistory,
                   child: Container(
@@ -119,7 +119,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                       color: AppTheme.accentPrimary,
                       borderRadius: BorderRadius.circular(14),
                     ),
-                    child: const Text('Retry',
+                    child: const Text('Повторить',
                         style: TextStyle(
                             color: Colors.white, fontWeight: FontWeight.w600)),
                   ),
@@ -135,7 +135,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
 
     if (items.isEmpty) {
       return Semantics(
-        label: 'No history yet. Ask a question first.',
+        label: 'Истории пока нет. Сначала задайте вопрос.',
         child: const Center(
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -144,13 +144,13 @@ class _HistoryScreenState extends State<HistoryScreen> {
                   size: 64, color: AppTheme.glassBorder),
               SizedBox(height: 16),
               Text(
-                'No history yet',
+                'Истории пока нет',
                 style:
                     TextStyle(color: AppTheme.textSecondary, fontSize: 18),
               ),
               SizedBox(height: 8),
               Text(
-                'Ask WayFinder a question to see it here.',
+                'Задайте вопрос WayFinder, чтобы увидеть его здесь.',
                 style: TextStyle(color: AppTheme.textMuted, fontSize: 14),
               ),
             ],
@@ -215,7 +215,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
     return Semantics(
       button: true,
       label:
-          '${isAsk ? "Question" : "Navigation"} at $timeStr: ${item.question}. Tap to view detail.',
+          '${isAsk ? "Вопрос" : "Навигация"} в $timeStr: ${item.question}. Нажмите, чтобы просмотреть детали.',
       child: GestureDetector(
         onTap: () {
           HapticPatterns.tap();
@@ -304,8 +304,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
     final today = DateTime(now.year, now.month, now.day);
     final date = DateTime(dt.year, dt.month, dt.day);
 
-    if (date == today) return 'Today';
-    if (date == today.subtract(const Duration(days: 1))) return 'Yesterday';
-    return DateFormat.yMMMd().format(dt);
+    if (date == today) return 'Сегодня';
+    if (date == today.subtract(const Duration(days: 1))) return 'Вчера';
+    return DateFormat.yMMMd('ru_RU').format(dt);
   }
 }

@@ -22,7 +22,7 @@ class SplashScreen extends StatefulWidget {
 }
 
 class _SplashScreenState extends State<SplashScreen> {
-  String _status = 'Starting up...';
+  String _status = 'Запуск...';
   bool _hasError = false;
 
   @override
@@ -32,41 +32,40 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 
   Future<void> _runStartup() async {
-    // Announce to screen readers
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      announceToScreenReader('WayFinder is starting up. Please wait.');
+      announceToScreenReader('WayFinder запускается. Пожалуйста, подождите.');
     });
 
-    // Minimum splash display time
     await Future.delayed(const Duration(milliseconds: 1200));
 
-    // Check backend health (non-blocking)
     try {
-      setState(() => _status = 'Connecting...');
+      setState(() => _status = 'Подключение...');
       await WayFinderApi.health().timeout(const Duration(seconds: 5));
     } catch (_) {
-      // Backend down is not fatal — we can still show auth/camera
+      // Backend down is not fatal
     }
 
     if (!mounted) return;
 
+    final prefs = await SharedPreferences.getInstance();
+    final hasSeenOnboarding = prefs.getBool('has_seen_onboarding') ?? false;
+
+    if (!hasSeenOnboarding) {
+      Navigator.pushReplacementNamed(context, '/onboarding');
+      return;
+    }
+
+    final camera = await Permission.camera.status;
+    final mic = await Permission.microphone.status;
+    if (!camera.isGranted || !mic.isGranted) {
+      Navigator.pushReplacementNamed(context, '/permissions');
+      return;
+    }
+
     if (mounted) {
       final auth = context.read<AuthProvider>();
       if (auth.isAuthenticated) {
-        // Evaluate subsequent flows
-        final prefs = await SharedPreferences.getInstance();
-        final hasSeenOnboarding = prefs.getBool('has_seen_onboarding') ?? false;
-        
-        if (!hasSeenOnboarding) {
-          Navigator.pushReplacementNamed(context, '/onboarding');
-        } else {
-          final camera = await Permission.camera.status;
-          if (!camera.isGranted) {
-            Navigator.pushReplacementNamed(context, '/permissions');
-          } else {
-            Navigator.pushReplacementNamed(context, '/home');
-          }
-        }
+        Navigator.pushReplacementNamed(context, '/home');
       } else {
         Navigator.pushReplacementNamed(context, '/auth');
       }
@@ -78,7 +77,7 @@ class _SplashScreenState extends State<SplashScreen> {
     return Scaffold(
       backgroundColor: AppTheme.background,
       body: Semantics(
-        label: 'WayFinder splash screen. $_status',
+        label: 'Заставочный экран WayFinder. $_status',
         child: Center(
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -156,11 +155,11 @@ class _SplashScreenState extends State<SplashScreen> {
                   onTap: () {
                     setState(() {
                       _hasError = false;
-                      _status = 'Retrying...';
+                      _status = 'Повторная попытка...';
                     });
                     _runStartup();
                   },
-                  label: 'Retry',
+                  label: 'Повторить',
                   icon: Icons.refresh_rounded,
                 ),
               ],

@@ -33,6 +33,32 @@ class AuthProvider extends ChangeNotifier {
     });
   }
 
+  Future<String?> getIdToken() async {
+    if (_user == null) return null;
+    try {
+      final token = await _user!.getIdToken();
+      return token;
+    } on FirebaseAuthException catch (e) {
+      if (e.code == 'ID_TOKEN_EXPIRED') {
+        _log.i('Firebase ID token expired, refreshing...');
+        try {
+          await _user!.reload();
+          final newToken = await _user!.getIdToken();
+          return newToken;
+        } catch (refreshError) {
+          _log.e('Failed to refresh token: $refreshError');
+          await signOut();
+          return null;
+        }
+      }
+      _log.e('FirebaseAuthException: ${e.message}');
+      return null;
+    } catch (e) {
+      _log.e('Error getting ID token: $e');
+      return null;
+    }
+  }
+
   Future<bool> signInWithGoogle() async {
     _isLoading = true;
     _error = null;
@@ -41,7 +67,6 @@ class AuthProvider extends ChangeNotifier {
     try {
       final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
       if (googleUser == null) {
-        // User canceled sign-in
         _isLoading = false;
         notifyListeners();
         return false;

@@ -75,6 +75,7 @@ class NavigationConsumer(AsyncWebsocketConsumer):
 
                 mode_str = data.get("mode", "nav")
                 query = data.get("query", "Analyze scene and provide navigation guidance.")
+                sent_at = data.get("sent_at", time.time() * 1000)
 
                 # Dispatch directly to Redis task queue via Celery
                 from .tasks import process_video_frame
@@ -83,7 +84,9 @@ class NavigationConsumer(AsyncWebsocketConsumer):
                     mode_str=mode_str,
                     query=query,
                     room_group_name=self.room_group_name,
-                    enqueue_time=time.monotonic()
+                    enqueue_time=time.monotonic(),
+                    client_sent_at=sent_at,
+                    received_at=time.time() * 1000
                 )
                 
                 # Acknowledge queuing

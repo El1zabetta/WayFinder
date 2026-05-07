@@ -32,18 +32,36 @@ class _SearchScreenState extends State<SearchScreen> {
   final _audio = SpatialAudioService();
 
   // Quick search presets
-  final _presets = ['Keys', 'Door', 'Exit', 'Free space', 'Chair', 'Phone', 'Bag'];
+  final _presets = [
+    'Ключи',
+    'Дверь',
+    'Выход',
+    'Свободное место',
+    'Стул',
+    'Телефон',
+    'Сумка'
+  ];
 
   @override
   void initState() {
     super.initState();
     _initCamera();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      announceToScreenReader(
+        'Экран поиска объектов. Введите название объекта или выберите из списка быстрых вариантов.',
+      );
+    });
   }
 
   Future<void> _initCamera() async {
     final cameras = await availableCameras();
-    if (cameras.isEmpty) return;
-    _cameraController = CameraController(cameras.first, ResolutionPreset.medium, enableAudio: false);
+    if (cameras.isEmpty) {
+      announceToScreenReader('Камера недоступна для поиска.');
+      return;
+    }
+    _cameraController = CameraController(cameras.first, ResolutionPreset.medium,
+        enableAudio: false);
     await _cameraController!.initialize();
     if (mounted) setState(() => _cameraReady = true);
   }
@@ -64,6 +82,8 @@ class _SearchScreenState extends State<SearchScreen> {
       _result = null;
     });
 
+    announceToScreenReader('Ищу $target. Пожалуйста, подождите.');
+
     try {
       // Record 3s video
       await _cameraController!.startVideoRecording();
@@ -77,12 +97,16 @@ class _SearchScreenState extends State<SearchScreen> {
       if (result.found && result.location != null) {
         await _audio.announceObjectFound(target, result.location!.azimuth);
         await _audio.playCues(result.audioCues);
+        announceToScreenReader('Объект $target найден.');
       } else {
-        await _audio.speak('$target not found in current view. $result.instructions', azimuth: 0);
+        final msg =
+            '$target не найден в текущем поле зрения. ${result.instructions}';
+        await _audio.speak(msg, azimuth: 0);
+        announceToScreenReader(msg);
       }
-
     } catch (e) {
       setState(() => _error = e.toString());
+      announceToScreenReader('Ошибка при поиске: $e');
     } finally {
       if (mounted) setState(() => _isSearching = false);
     }
@@ -95,7 +119,8 @@ class _SearchScreenState extends State<SearchScreen> {
       body: Stack(
         children: [
           const Positioned.fill(
-            child: DecoratedBox(decoration: BoxDecoration(gradient: AppTheme.bgGlow)),
+            child: DecoratedBox(
+                decoration: BoxDecoration(gradient: AppTheme.bgGlow)),
           ),
           SafeArea(
             child: Column(
@@ -106,21 +131,27 @@ class _SearchScreenState extends State<SearchScreen> {
                   padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
                   child: Row(
                     children: [
-                      GestureDetector(
-                        onTap: () => Navigator.pop(context),
-                        child: const Icon(Icons.arrow_back_ios_new_rounded,
-                            color: AppTheme.textPrimary, size: 22),
+                      Semantics(
+                        button: true,
+                        label: 'Вернуться назад',
+                        child: GestureDetector(
+                          onTap: () => Navigator.pop(context),
+                          child: const Icon(Icons.arrow_back_ios_new_rounded,
+                              color: AppTheme.textPrimary, size: 22),
+                        ),
                       ),
                       const SizedBox(width: 16),
-                      Text('Find Object',
+                      Text('Поиск объекта',
                           style: Theme.of(context).textTheme.titleLarge),
                       const Spacer(),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 5),
                         decoration: BoxDecoration(
                           color: AppTheme.accentTeal.withOpacity(0.15),
                           borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: AppTheme.accentTeal.withOpacity(0.3)),
+                          border: Border.all(
+                              color: AppTheme.accentTeal.withOpacity(0.3)),
                         ),
                         child: const Text(
                           'RynnBrain-Plan',
@@ -149,30 +180,40 @@ class _SearchScreenState extends State<SearchScreen> {
                     child: Row(
                       children: [
                         const SizedBox(width: 16),
-                        const Icon(Icons.search_rounded, color: AppTheme.accentPrimary),
+                        const Icon(Icons.search_rounded,
+                            color: AppTheme.accentPrimary),
                         const SizedBox(width: 12),
                         Expanded(
-                          child: TextField(
-                            controller: _searchController,
-                            style: const TextStyle(color: AppTheme.textPrimary, fontSize: 17),
-                            decoration: const InputDecoration(
-                              hintText: 'What are you looking for?',
-                              hintStyle: TextStyle(color: AppTheme.textMuted, fontSize: 17),
-                              border: InputBorder.none,
+                          child: Semantics(
+                            label: 'Поле ввода поиска',
+                            child: TextField(
+                              controller: _searchController,
+                              style: const TextStyle(
+                                  color: AppTheme.textPrimary, fontSize: 17),
+                              decoration: const InputDecoration(
+                                hintText: 'Что вы ищете?',
+                                hintStyle: TextStyle(
+                                    color: AppTheme.textMuted, fontSize: 17),
+                                border: InputBorder.none,
+                              ),
+                              onSubmitted: _search,
                             ),
-                            onSubmitted: _search,
                           ),
                         ),
                         if (_searchController.text.isNotEmpty)
-                          GestureDetector(
-                            onTap: () {
-                              _searchController.clear();
-                              setState(() {});
-                            },
-                            child: const Padding(
-                              padding: EdgeInsets.only(right: 12),
-                              child: Icon(Icons.close_rounded,
-                                  color: AppTheme.textSecondary, size: 20),
+                          Semantics(
+                            button: true,
+                            label: 'Очистить поиск',
+                            child: GestureDetector(
+                              onTap: () {
+                                _searchController.clear();
+                                setState(() {});
+                              },
+                              child: const Padding(
+                                padding: EdgeInsets.only(right: 12),
+                                child: Icon(Icons.close_rounded,
+                                    color: AppTheme.textSecondary, size: 20),
+                              ),
                             ),
                           ),
                       ],
@@ -185,7 +226,7 @@ class _SearchScreenState extends State<SearchScreen> {
                 // Quick presets
                 Padding(
                   padding: const EdgeInsets.only(left: 20),
-                  child: Text('Quick Search',
+                  child: Text('Быстрый поиск',
                       style: Theme.of(context)
                           .textTheme
                           .bodyMedium
@@ -199,25 +240,30 @@ class _SearchScreenState extends State<SearchScreen> {
                     scrollDirection: Axis.horizontal,
                     itemCount: _presets.length,
                     separatorBuilder: (_, __) => const SizedBox(width: 10),
-                    itemBuilder: (ctx, i) => GestureDetector(
-                      onTap: () {
-                        _searchController.text = _presets[i];
-                        _search(_presets[i]);
-                      },
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                        decoration: BoxDecoration(
-                          color: AppTheme.accentTeal.withOpacity(0.12),
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(
-                              color: AppTheme.accentTeal.withOpacity(0.3)),
-                        ),
-                        child: Text(
-                          _presets[i],
-                          style: const TextStyle(
-                            color: AppTheme.accentTeal,
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
+                    itemBuilder: (ctx, i) => Semantics(
+                      button: true,
+                      label: 'Поиск: ${_presets[i]}',
+                      child: GestureDetector(
+                        onTap: () {
+                          _searchController.text = _presets[i];
+                          _search(_presets[i]);
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 16, vertical: 10),
+                          decoration: BoxDecoration(
+                            color: AppTheme.accentTeal.withOpacity(0.12),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(
+                                color: AppTheme.accentTeal.withOpacity(0.3)),
+                          ),
+                          child: Text(
+                            _presets[i],
+                            style: const TextStyle(
+                              color: AppTheme.accentTeal,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
                         ),
                       ),
@@ -230,30 +276,36 @@ class _SearchScreenState extends State<SearchScreen> {
                 // Search button
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: ElevatedButton(
-                    onPressed: _isSearching
-                        ? null
-                        : () => _search(_searchController.text.trim()),
-                    style: ElevatedButton.styleFrom(
-                      minimumSize: const Size(double.infinity, 56),
-                      backgroundColor: AppTheme.accentTeal,
-                      disabledBackgroundColor: AppTheme.textMuted,
+                  child: Semantics(
+                    button: true,
+                    label: _isSearching
+                        ? 'Анализ выполняется. Пожалуйста, подождите.'
+                        : 'Начать поиск сейчас',
+                    child: ElevatedButton(
+                      onPressed: _isSearching
+                          ? null
+                          : () => _search(_searchController.text.trim()),
+                      style: ElevatedButton.styleFrom(
+                        minimumSize: const Size(double.infinity, 56),
+                        backgroundColor: AppTheme.accentTeal,
+                        disabledBackgroundColor: AppTheme.textMuted,
+                      ),
+                      child: _isSearching
+                          ? const Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(
+                                      strokeWidth: 2, color: Colors.white),
+                                ),
+                                SizedBox(width: 12),
+                                Text('Анализ через RynnBrain...'),
+                              ],
+                            )
+                          : const Text('Искать сейчас'),
                     ),
-                    child: _isSearching
-                        ? const Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              SizedBox(
-                                width: 20,
-                                height: 20,
-                                child: CircularProgressIndicator(
-                                    strokeWidth: 2, color: Colors.white),
-                              ),
-                              SizedBox(width: 12),
-                              Text('Analyzing with RynnBrain...'),
-                            ],
-                          )
-                        : const Text('Search Now'),
                   ),
                 ),
 
@@ -271,7 +323,8 @@ class _SearchScreenState extends State<SearchScreen> {
                           const SizedBox(width: 12),
                           Expanded(
                               child: Text(_error!,
-                                  style: const TextStyle(color: AppTheme.danger))),
+                                  style: const TextStyle(
+                                      color: AppTheme.danger))),
                         ],
                       ),
                     ),
@@ -287,45 +340,51 @@ class _SearchScreenState extends State<SearchScreen> {
   }
 
   Widget _buildResult(SearchResult result) {
+    final statusText =
+        result.found ? '${result.target} найден!' : '${result.target} не виден';
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
-      child: GlassCard(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(
-                  result.found ? Icons.check_circle_rounded : Icons.info_outline_rounded,
-                  color: result.found ? AppTheme.safe : AppTheme.warning,
-                  size: 22,
-                ),
-                const SizedBox(width: 10),
-                Text(
-                  result.found ? '${result.target} Found!' : '${result.target} Not Visible',
-                  style: TextStyle(
+      child: Semantics(
+        liveRegion: true,
+        label: 'Результат поиска: $statusText. ${result.instructions}',
+        child: GlassCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(
+                    result.found
+                        ? Icons.check_circle_rounded
+                        : Icons.info_outline_rounded,
                     color: result.found ? AppTheme.safe : AppTheme.warning,
-                    fontWeight: FontWeight.w700,
-                    fontSize: 16,
+                    size: 22,
                   ),
-                ),
+                  const SizedBox(width: 10),
+                  Text(
+                    statusText,
+                    style: TextStyle(
+                      color: result.found ? AppTheme.safe : AppTheme.warning,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 16,
+                    ),
+                  ),
+                ],
+              ),
+              if (result.found && result.location != null) ...[
+                const SizedBox(height: 12),
+                _DirectionIndicator(azimuth: result.location!.azimuth),
               ],
-            ),
-
-            if (result.found && result.location != null) ...[
               const SizedBox(height: 12),
-              _DirectionIndicator(azimuth: result.location!.azimuth),
+              Text(result.instructions,
+                  style: Theme.of(context).textTheme.bodyMedium),
+              const SizedBox(height: 8),
+              Text(
+                'Уверенность: ${(result.confidence * 100).toStringAsFixed(0)}%',
+                style: const TextStyle(color: AppTheme.textMuted, fontSize: 12),
+              ),
             ],
-
-            const SizedBox(height: 12),
-            Text(result.instructions, style: Theme.of(context).textTheme.bodyMedium),
-
-            const SizedBox(height: 8),
-            Text(
-              '${(result.confidence * 100).toStringAsFixed(0)}% confidence',
-              style: const TextStyle(color: AppTheme.textMuted, fontSize: 12),
-            ),
-          ],
+          ),
         ),
       ).animate().fadeIn().slideY(begin: 0.1),
     );
@@ -343,9 +402,13 @@ class _DirectionIndicator extends StatelessWidget {
     final t = (clampedAzi + 90) / 180; // 0..1
 
     String dirText;
-    if (clampedAzi < -30) dirText = '← Left';
-    else if (clampedAzi > 30) dirText = 'Right →';
-    else dirText = 'Ahead ↑';
+    if (clampedAzi < -30) {
+      dirText = '← Налево';
+    } else if (clampedAzi > 30) {
+      dirText = 'Направо →';
+    } else {
+      dirText = 'Прямо ↑';
+    }
 
     return Container(
       height: 48,

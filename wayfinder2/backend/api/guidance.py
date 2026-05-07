@@ -45,41 +45,41 @@ def _build_instruction(facts: SceneFacts, threats: list[ThreatAssessment]) -> st
         pos = obj.relative_position
 
         if top.severity == ThreatSeverity.CRITICAL:
-            return f"Stop. {obj.label.capitalize()} {pos}."
+            return f"Опасность! {obj.label.capitalize()} {pos}. Остановитесь!"
 
         # High severity: warn + suggest direction
         avoid_dir = _suggest_avoidance(obj, facts)
         if avoid_dir:
-            return f"Caution. {obj.label.capitalize()} {pos}. {avoid_dir}"
-        return f"Caution. {obj.label.capitalize()} {pos}."
+            return f"Внимание! {obj.label.capitalize()} {pos}. {avoid_dir}"
+        return f"Внимание! {obj.label.capitalize()} {pos}."
 
     # Medium threats: gentle guidance
     medium = [t for t in threats if t.severity == ThreatSeverity.MEDIUM]
     if medium:
         top = medium[0]
         pos = top.object.relative_position
-        return f"{top.object.label.capitalize()} {pos}. Move carefully."
+        return f"{top.object.label.capitalize()} {pos}. Двигайтесь осторожно."
 
     # No significant threats — use free path
     if facts.free_path_direction:
         direction = facts.free_path_direction.replace("_", " ")
         if direction == "ahead":
-            return "Path clear. Move forward."
+            return "Похоже, путь свободен. Двигайтесь осторожно."
         elif direction == "none":
-            return "No clear path detected. Please stop and reassess."
+            return "Не вижу свободного пути. Остановитесь и оцените обстановку."
         else:
-            return f"Move {direction}."
+            return f"Похоже, путь {direction} свободен. Двигайтесь осторожно."
 
     # Fallback — low confidence
     if facts.confidence < 0.5:
-        return "Scene unclear. Proceed with caution."
+        return "Я не уверен, что вижу. Двигайтесь осторожно."
 
-    return "Move forward carefully."
+    return "Двигайтесь вперёд осторожно."
 
 
 def _build_summary(facts: SceneFacts, threats: list[ThreatAssessment]) -> str:
     """
-    Build a concise scene summary. 2–3 sentences max.
+    Build a concise scene summary. 2-3 sentences max.
     Lists key objects with positions.
     """
     if facts.scene_description and facts.scene_description != "Scene analyzed.":
@@ -90,7 +90,7 @@ def _build_summary(facts: SceneFacts, threats: list[ThreatAssessment]) -> str:
         parts.append(f"{obj.label.capitalize()} {obj.relative_position}.")
 
     if not parts:
-        return "No notable objects detected."
+        return "Значительных объектов не обнаружено."
 
     return " ".join(parts)
 
@@ -102,16 +102,23 @@ def _suggest_avoidance(obj: DetectedObject, facts: SceneFacts) -> str:
     # Use free_path_direction if available
     if facts.free_path_direction and facts.free_path_direction != "none":
         direction = facts.free_path_direction.replace("_", " ")
-        return f"Move {direction}."
+        russian_dir = {
+            "left": "левее",
+            "slightly left": "чуть левее",
+            "ahead": "прямо",
+            "slightly right": "чуть правее",
+            "right": "правее"
+        }.get(direction, direction)
+        return f"Сместитесь {russian_dir}."
 
     # Otherwise infer from obstacle position
     if cx < 0.4:
-        return "Move slightly right."
+        return "Сместитесь правее."
     elif cx > 0.6:
-        return "Move slightly left."
+        return "Сместитесь левее."
     else:
         # Obstacle is centered — harder call
-        return "Step to the side."
+        return "Обойдите препятствие сбоку."
 
 
 def _build_audio_cues(facts: SceneFacts, threats: list[ThreatAssessment]) -> list[dict]:
@@ -120,6 +127,9 @@ def _build_audio_cues(facts: SceneFacts, threats: list[ThreatAssessment]) -> lis
     Each cue has: message, azimuth, priority.
     """
     cues = []
+
+    # Map English labels to Russian if needed or just use as is if AI returns Russian
+    # For now, ensure common navigation terms are consistent
 
     # Threat cues (highest priority)
     for threat in threats[:3]:
@@ -151,7 +161,7 @@ def _build_audio_cues(facts: SceneFacts, threats: list[ThreatAssessment]) -> lis
         }
         az = dir_to_azimuth.get(facts.free_path_direction, 0.0)
         cues.append({
-            "message": "Safe path",
+            "message": "Безопасный путь",
             "azimuth": az,
             "elevation": 0.0,
             "priority": "LOW",

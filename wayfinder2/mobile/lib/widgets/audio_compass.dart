@@ -28,9 +28,9 @@ class AudioCompass extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             crossAxisAlignment: CrossAxisAlignment.end,
             children: const [
-              Text('L', style: TextStyle(color: AppTheme.textMuted, fontSize: 11)),
-              Text('CENTER', style: TextStyle(color: AppTheme.textSecondary, fontSize: 10)),
-              Text('R', style: TextStyle(color: AppTheme.textMuted, fontSize: 11)),
+              Text('Л', style: TextStyle(color: AppTheme.textMuted, fontSize: 11)),
+              Text('ЦЕНТР', style: TextStyle(color: AppTheme.textSecondary, fontSize: 10)),
+              Text('П', style: TextStyle(color: AppTheme.textMuted, fontSize: 11)),
             ],
           ),
         ),

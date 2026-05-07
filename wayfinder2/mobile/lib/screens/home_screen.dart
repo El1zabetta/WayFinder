@@ -31,7 +31,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _announceReady() async {
     final audio = SpatialAudioService();
     // Providing a "system ready" check and welcome
-    await audio.speak("WayFinder 2.0 active. RynnBrain agent connected and ready.");
+    await audio.speak("WayFinder 2.0 активен. Агент RynnBrain подключен и готов к работе.");
   }
 
   @override
@@ -102,7 +102,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 style: Theme.of(context).textTheme.titleLarge,
               ),
               Text(
-                'RynnBrain 2B · Active',
+                'RynnBrain 2B · Активен',
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                       color: AppTheme.safe,
                       fontSize: 12,
@@ -114,15 +114,19 @@ class _HomeScreenState extends State<HomeScreen> {
           // Settings
           GestureDetector(
             onTap: () => Navigator.pushNamed(context, '/settings'),
-            child: Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                color: AppTheme.glassBg,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppTheme.glassBorder),
+            child: Semantics(
+              button: true,
+              label: 'Настройки',
+              child: Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: AppTheme.glassBg,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppTheme.glassBorder),
+                ),
+                child: const Icon(Icons.tune_rounded, color: AppTheme.textSecondary, size: 22),
               ),
-              child: const Icon(Icons.tune_rounded, color: AppTheme.textSecondary, size: 22),
             ),
           ),
         ],
@@ -155,7 +159,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
-                    'ALERT: ${safety.threats.length} hazard(s) detected nearby',
+                    'ВНИМАНИЕ: Обнаружено опасностей: ${safety.threats.length}',
                     style: const TextStyle(
                       color: Colors.white,
                       fontWeight: FontWeight.w700,
@@ -182,12 +186,12 @@ class _HomeScreenState extends State<HomeScreen> {
           // Primary CTA — Navigate
           _BigActionButton(
             icon: Icons.directions_walk_rounded,
-            label: 'Start Navigation',
-            sublabel: 'RynnBrain-Nav · Voice guided',
+            label: 'Начать навигацию',
+            sublabel: 'RynnBrain-Нав · Голосовое сопровождение',
             gradient: AppTheme.primaryGradient,
             glowColor: AppTheme.accentPrimary,
             onTap: () => Navigator.pushNamed(context, '/camera'),
-            semanticLabel: 'Start navigation mode camera',
+            semanticLabel: 'Запустить камеру в режиме навигации',
           ).animate().fadeIn(delay: 100.ms).slideY(begin: 0.2),
 
           const SizedBox(height: 16),
@@ -198,8 +202,8 @@ class _HomeScreenState extends State<HomeScreen> {
               Expanded(
                 child: _MediumActionButton(
                   icon: Icons.shield_rounded,
-                  label: 'Safety Check',
-                  sublabel: 'CoP Threats',
+                  label: 'Безопасность',
+                  sublabel: 'Угрозы CoP',
                   color: AppTheme.warning,
                   onTap: () => Navigator.pushNamed(context, '/camera',
                       arguments: {'mode': 'cop'}),
@@ -212,8 +216,8 @@ class _HomeScreenState extends State<HomeScreen> {
               Expanded(
                 child: _MediumActionButton(
                   icon: Icons.search_rounded,
-                  label: 'Find Object',
-                  sublabel: 'RynnBrain-Plan',
+                  label: 'Найти объект',
+                  sublabel: 'RynnBrain-План',
                   color: AppTheme.accentTeal,
                   onTap: () => Navigator.pushNamed(context, '/search'),
                 ).animate().fadeIn(delay: 300.ms).slideY(begin: 0.2),
@@ -241,13 +245,13 @@ class _HomeScreenState extends State<HomeScreen> {
                     StatusIndicator(active: isActive),
                     const SizedBox(width: 10),
                     Text(
-                      isActive ? 'Analyzing...' : 'Ready',
+                      isActive ? 'Анализ...' : 'Готов',
                       style: Theme.of(ctx).textTheme.labelLarge,
                     ),
                     const Spacer(),
                     if (nav.lastResult != null)
                       Text(
-                        '${(nav.lastResult!.confidence * 100).toStringAsFixed(0)}% conf.',
+                        '${(nav.lastResult!.confidence * 100).toStringAsFixed(0)}% довер.',
                         style: const TextStyle(
                           color: AppTheme.textSecondary,
                           fontSize: 13,

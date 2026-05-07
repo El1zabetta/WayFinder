@@ -12,12 +12,14 @@ import 'dart:io';
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
 
 import '../core/app_theme.dart';
 import '../core/accessibility.dart';
 import '../core/constants.dart';
 import '../providers/assistant_provider.dart';
+import '../services/frame_streaming_service.dart';
 import '../services/stt_service.dart';
 
 class AskAssistantSheet extends StatefulWidget {
@@ -48,14 +50,23 @@ class _AskAssistantSheetState extends State<AskAssistantSheet> {
     super.initState();
     _initStt();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      announceToScreenReader(
-        'Ask assistant opened. Tap the microphone to ask a question about what you see.',
-      );
+      final assistant = context.read<AssistantProvider>();
+      if (assistant.state != AssistantState.wakeWordDetected) {
+        announceToScreenReader(
+          'Ассистент открыт. Нажмите на микрофон, чтобы задать вопрос о том, что вы видите.',
+        );
+      } else {
+        // If opened via wakeword, start listening immediately
+        Future.delayed(const Duration(milliseconds: 500), () {
+          if (mounted) _startListening();
+        });
+      }
     });
   }
 
   Future<void> _initStt() async {
     final available = await _stt.init();
+    _stt.setLocale('ru_RU'); // Force Russian for WayFinder 3.0
     if (mounted) {
       setState(() {
         _sttAvailable = available;
@@ -63,7 +74,7 @@ class _AskAssistantSheetState extends State<AskAssistantSheet> {
       });
       if (!available) {
         announceToScreenReader(
-          'Voice recognition is not available on this device. You can type your question instead.',
+          'Распознавание голоса недоступно на этом устройстве. Вы можете ввести свой вопрос текстом.',
         );
       }
     }
@@ -84,15 +95,18 @@ class _AskAssistantSheetState extends State<AskAssistantSheet> {
     // If STT is unavailable, show keyboard
     if (!_sttAvailable) {
       setState(() => _showKeyboardFallback = true);
-      announceToScreenReader('Type your question.');
+      announceToScreenReader('Введите ваш вопрос.');
       return;
     }
+
+    final assistant = context.read<AssistantProvider>();
+    assistant.setListening();
 
     setState(() {
       _isListening = true;
       _liveTranscript = '';
     });
-    announceToScreenReader('Listening. Speak your question now.');
+    announceToScreenReader('Слушаю. Произнесите ваш вопрос сейчас.');
 
     final started = await _stt.startListening(
       onResult: _onSttResult,
@@ -103,7 +117,7 @@ class _AskAssistantSheetState extends State<AskAssistantSheet> {
 
     if (!started && mounted) {
       setState(() => _isListening = false);
-      announceToScreenReader('Could not start voice recognition. Try typing instead.');
+      announceToScreenReader('Не удалось запустить распознавание голоса. Попробуйте ввести текст.');
       setState(() => _showKeyboardFallback = true);
     }
   }
@@ -121,7 +135,7 @@ class _AskAssistantSheetState extends State<AskAssistantSheet> {
       _isListening = false;
       _liveTranscript = '';
     });
-    announceToScreenReader('Listening cancelled.');
+    announceToScreenReader('Прослушивание отменено.');
   }
 
   void _onSttResult(String text, bool isFinal) {
@@ -135,20 +149,20 @@ class _AskAssistantSheetState extends State<AskAssistantSheet> {
 
     final transcript = _liveTranscript.trim();
     if (transcript.isEmpty) {
-      announceToScreenReader("I didn't hear anything. Tap the microphone to try again.");
+      announceToScreenReader("Я ничего не услышал. Нажмите на микрофон, чтобы попробовать еще раз.");
       HapticPatterns.error();
       return;
     }
 
     // Auto-submit the recognized speech
-    announceToScreenReader('Got it. Processing your question.');
+    announceToScreenReader('Понял. Обрабатываю ваш вопрос.');
     _sendQuestion(transcript);
   }
 
   void _onSttError(String errorMsg) {
     if (!mounted) return;
     setState(() => _isListening = false);
-    announceToScreenReader("Voice recognition error. Tap the microphone to try again.");
+    announceToScreenReader("Ошибка распознавания голоса. Нажмите на микрофон, чтобы попробовать еще раз.");
     HapticPatterns.error();
   }
 
@@ -171,7 +185,15 @@ class _AskAssistantSheetState extends State<AskAssistantSheet> {
       try {
         final xFile = await widget.cameraController!.takePicture();
         imageFile = File(xFile.path);
-      } catch (_) {}
+      } catch (_) {
+        // Fallback to last streamed frame if capture fails
+        final streamer = context.read<FrameStreamingService>();
+        if (streamer.lastFrameBytes != null) {
+          final tempDir = await getTemporaryDirectory();
+          imageFile = File('${tempDir.path}/last_frame.jpg');
+          await imageFile.writeAsBytes(streamer.lastFrameBytes!);
+        }
+      }
     }
 
     await provider.askQuestion(
@@ -229,7 +251,7 @@ class _AskAssistantSheetState extends State<AskAssistantSheet> {
                     child: const Padding(
                       padding: EdgeInsets.symmetric(horizontal: 24, vertical: 8),
                       child: Text(
-                        'Ask about what you see',
+                        'Спросите о том, что видите',
                         style: TextStyle(
                           color: AppTheme.textPrimary,
                           fontSize: 20,
@@ -250,7 +272,8 @@ class _AskAssistantSheetState extends State<AskAssistantSheet> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           // Listening indicator
-                          if (_isListening) _buildListeningIndicator(),
+                          if (_isListening || assistant.state == AssistantState.wakeWordListening || assistant.state == AssistantState.wakeWordDetected) 
+                            _buildListeningIndicator(assistant),
                           // Transcript area
                           _buildTranscriptArea(assistant),
                           const SizedBox(height: 16),
@@ -282,10 +305,10 @@ class _AskAssistantSheetState extends State<AskAssistantSheet> {
 
   // ─── Listening Indicator ───────────────────────────────────────────────
 
-  Widget _buildListeningIndicator() {
+  Widget _buildListeningIndicator(AssistantProvider assistant) {
     return Semantics(
       liveRegion: true,
-      label: 'Listening for your voice',
+      label: assistant.stateText,
       child: Container(
         width: double.infinity,
         padding: const EdgeInsets.all(16),
@@ -301,7 +324,9 @@ class _AskAssistantSheetState extends State<AskAssistantSheet> {
               width: 12,
               height: 12,
               decoration: BoxDecoration(
-                color: AppTheme.danger,
+                color: assistant.state == AssistantState.listening || assistant.state == AssistantState.wakeWordListening
+                    ? AppTheme.danger
+                    : AppTheme.safe,
                 shape: BoxShape.circle,
               ),
             )
@@ -312,11 +337,23 @@ class _AskAssistantSheetState extends State<AskAssistantSheet> {
             const SizedBox(width: 12),
             Expanded(
               child: Text(
-                _liveTranscript.isNotEmpty
+                _isListening && _liveTranscript.isNotEmpty
                     ? _liveTranscript
-                    : 'Listening... speak now',
+                    : assistant.stateText,
                 style: TextStyle(
                   color: _liveTranscript.isNotEmpty
+                      ? AppTheme.textPrimary
+                      : AppTheme.textSecondary,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
                       ? AppTheme.textPrimary
                       : AppTheme.textMuted,
                   fontSize: 16,
@@ -350,8 +387,8 @@ class _AskAssistantSheetState extends State<AskAssistantSheet> {
         ),
         child: Text(
           _sttAvailable
-              ? 'Tap the microphone and speak your question.\nFor example: "What is in front of me?"'
-              : 'Voice recognition is not available.\nType your question below.',
+              ? 'Нажмите на микрофон и произнесите свой вопрос.\nНапример: "Что находится передо мной?"'
+              : 'Распознавание голоса недоступно.\nВведите ваш вопрос ниже.',
           style: const TextStyle(
               color: AppTheme.textMuted, fontSize: 14, height: 1.5),
         ),
@@ -372,7 +409,7 @@ class _AskAssistantSheetState extends State<AskAssistantSheet> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
-            'Your question:',
+            'Ваш вопрос:',
             style: TextStyle(
               color: AppTheme.textMuted,
               fontSize: 12,
@@ -417,7 +454,7 @@ class _AskAssistantSheetState extends State<AskAssistantSheet> {
             ),
             SizedBox(width: 12),
             Text(
-              'Thinking...',
+              'Думаю...',
               style: TextStyle(
                 color: AppTheme.textSecondary,
                 fontSize: 14,
@@ -432,7 +469,7 @@ class _AskAssistantSheetState extends State<AskAssistantSheet> {
 
     return Semantics(
       liveRegion: true,
-      label: 'Answer: ${assistant.answer}',
+      label: 'Ответ: ${assistant.answer}',
       child: Container(
         width: double.infinity,
         padding: const EdgeInsets.all(16),
@@ -472,7 +509,7 @@ class _AskAssistantSheetState extends State<AskAssistantSheet> {
               Padding(
                 padding: const EdgeInsets.only(top: 8),
                 child: Text(
-                  '${(assistant.confidence * 100).toStringAsFixed(0)}% confidence',
+                  'Уверенность: ${(assistant.confidence * 100).toStringAsFixed(0)}%',
                   style: const TextStyle(
                     color: AppTheme.textMuted,
                     fontSize: 12,
@@ -493,7 +530,7 @@ class _AskAssistantSheetState extends State<AskAssistantSheet> {
         Expanded(
           child: Semantics(
             button: true,
-            label: 'Repeat the answer',
+            label: 'Повторить ответ',
             child: GestureDetector(
               onTap: () {
                 HapticPatterns.tap();
@@ -512,7 +549,7 @@ class _AskAssistantSheetState extends State<AskAssistantSheet> {
                     Icon(Icons.volume_up_rounded,
                         color: AppTheme.accentPrimary, size: 20),
                     SizedBox(width: 8),
-                    Text('Repeat',
+                    Text('Повторить',
                         style: TextStyle(
                             color: AppTheme.textPrimary,
                             fontWeight: FontWeight.w600)),
@@ -526,7 +563,7 @@ class _AskAssistantSheetState extends State<AskAssistantSheet> {
         Expanded(
           child: Semantics(
             button: true,
-            label: 'Ask another question',
+            label: 'Задать другой вопрос',
             child: GestureDetector(
               onTap: () {
                 HapticPatterns.tap();
@@ -550,7 +587,7 @@ class _AskAssistantSheetState extends State<AskAssistantSheet> {
                     Icon(Icons.mic_rounded,
                         color: AppTheme.accentPrimary, size: 20),
                     SizedBox(width: 8),
-                    Text('Ask Again',
+                    Text('Спросить снова',
                         style: TextStyle(
                             color: AppTheme.accentPrimary,
                             fontWeight: FontWeight.w600)),
@@ -574,14 +611,14 @@ class _AskAssistantSheetState extends State<AskAssistantSheet> {
         children: [
           Expanded(
             child: Semantics(
-              label: 'Type your question',
+              label: 'Введите ваш вопрос',
               child: TextField(
                 controller: _textController,
                 autofocus: true,
                 style: const TextStyle(
                     color: AppTheme.textPrimary, fontSize: 16),
                 decoration: InputDecoration(
-                  hintText: 'Type your question...',
+                  hintText: 'Введите ваш вопрос...',
                   hintStyle: const TextStyle(color: AppTheme.textMuted),
                   filled: true,
                   fillColor: AppTheme.glassBg,
@@ -603,7 +640,7 @@ class _AskAssistantSheetState extends State<AskAssistantSheet> {
           const SizedBox(width: 8),
           Semantics(
             button: true,
-            label: 'Send question',
+            label: 'Отправить вопрос',
             child: GestureDetector(
               onTap: () {
                 _sendQuestion(_textController.text);
@@ -643,7 +680,7 @@ class _AskAssistantSheetState extends State<AskAssistantSheet> {
             // Close / Cancel button
             Semantics(
               button: true,
-              label: _isListening ? 'Cancel listening' : 'Close assistant',
+              label: _isListening ? 'Отменить прослушивание' : 'Закрыть ассистент',
               child: GestureDetector(
                 onTap: () {
                   if (_isListening) {
@@ -684,10 +721,10 @@ class _AskAssistantSheetState extends State<AskAssistantSheet> {
             Semantics(
               button: true,
               label: _isListening
-                  ? 'Tap to stop listening and send your question'
+                  ? 'Нажмите, чтобы остановить прослушивание и отправить вопрос'
                   : canTap
-                      ? 'Tap to ask a question by voice'
-                      : 'Please wait, processing your question',
+                      ? 'Нажмите, чтобы задать вопрос голосом'
+                      : 'Пожалуйста, подождите, идет обработка вопроса',
               child: GestureDetector(
                 onTap: _isListening
                     ? _stopListening
