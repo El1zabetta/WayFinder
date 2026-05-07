@@ -20,7 +20,7 @@ services:
       - logs:/var/log/wayfinder
       - static_files:/app/staticfiles
       - hf_cache:/root/.cache/huggingface
-      - ./wayfinder-483708-firebase-adminsdk-fbsvc-e94ec7bd43.json:/app/firebase-credentials.json:ro
+      - ./firebase-service-account.json:/app/firebase-credentials.json:ro
     depends_on:
       db:
         condition: service_healthy
@@ -55,7 +55,7 @@ services:
     volumes:
       - logs:/var/log/wayfinder
       - hf_cache:/root/.cache/huggingface
-      - ./wayfinder-483708-firebase-adminsdk-fbsvc-e94ec7bd43.json:/app/firebase-credentials.json:ro
+      - ./firebase-service-account.json:/app/firebase-credentials.json:ro
     depends_on:
       db:
         condition: service_healthy
