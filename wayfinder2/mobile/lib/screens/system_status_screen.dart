@@ -1,5 +1,6 @@
 /// WayFinder 3.0 — System Status Screen
 /// Backend and model health dashboard.
+library;
 
 import 'package:flutter/material.dart';
 
@@ -139,7 +140,7 @@ class _SystemStatusScreenState extends State<SystemStatusScreen> {
                 children: [
                   Text(title, style: const TextStyle(color: AppTheme.textSecondary, fontSize: 13)),
                   const SizedBox(height: 4),
-                  Text(status, style: TextStyle(color: AppTheme.textPrimary, fontSize: 16, fontWeight: FontWeight.bold)),
+                  Text(status, style: const TextStyle(color: AppTheme.textPrimary, fontSize: 16, fontWeight: FontWeight.bold)),
                 ],
               ),
             ),

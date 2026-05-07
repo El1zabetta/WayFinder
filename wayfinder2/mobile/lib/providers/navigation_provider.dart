@@ -2,6 +2,7 @@
 /// State management for active navigation session with RynnBrain-Nav.
 /// Includes structured error handling with spoken/accessible feedback.
 /// Supports offline fallback with cached analysis when server is unreachable.
+library;
 
 import 'dart:io';
 import 'package:flutter/foundation.dart';

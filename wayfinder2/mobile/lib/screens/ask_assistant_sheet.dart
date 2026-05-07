@@ -179,7 +179,7 @@ class _AskAssistantSheetState extends State<AskAssistantSheet> {
 
     final provider = context.read<AssistantProvider>();
 
-    // Capture current frame for visual context
+    final streamer = context.read<FrameStreamingService>();
     File? imageFile;
     if (widget.cameraController != null &&
         widget.cameraController!.value.isInitialized) {
@@ -188,7 +188,6 @@ class _AskAssistantSheetState extends State<AskAssistantSheet> {
         imageFile = File(xFile.path);
       } catch (_) {
         // Fallback to last streamed frame if capture fails
-        final streamer = context.read<FrameStreamingService>();
         if (streamer.lastFrameBytes != null) {
           final tempDir = await getTemporaryDirectory();
           imageFile = File('${tempDir.path}/last_frame.jpg');
@@ -201,6 +200,8 @@ class _AskAssistantSheetState extends State<AskAssistantSheet> {
       question,
       imageFile: imageFile,
     );
+
+    if (!mounted) return;
 
     // Clean up temp image
     if (imageFile != null) {

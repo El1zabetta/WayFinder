@@ -2,10 +2,11 @@
 /// Real-time frame streaming to Django backend via WebSocket.
 /// Features: 480p compression, JPEG q=75, frame differencing (>15% threshold),
 /// automatic reconnection, and bidirectional AI response streaming.
+library;
 
 import 'dart:async';
 import 'dart:convert';
-import 'dart:typed_data';
+
 
 import 'package:camera/camera.dart';
 import 'package:flutter/foundation.dart';
@@ -226,7 +227,7 @@ class FrameStreamingService extends ChangeNotifier {
     if (_previousFrame == null) return true;
 
     // Sample every Nth byte for speed (don't compare all bytes)
-    final sampleStep = 64;
+    const sampleStep = 64;
     final prev = _previousFrame!;
     final minLen = prev.length < newFrame.length ? prev.length : newFrame.length;
 

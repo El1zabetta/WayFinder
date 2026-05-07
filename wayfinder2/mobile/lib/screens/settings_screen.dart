@@ -1,13 +1,13 @@
 /// WayFinder 3.0 — Settings Screen
 /// Account, voice, navigation, system, accessibility.
 /// Large touch targets, accessible labels, no tiny icons.
+library;
 
 import 'package:flutter/material.dart';
 
 import '../core/app_theme.dart';
 import '../core/accessibility.dart';
 import '../core/constants.dart';
-import '../services/api_client.dart';
 import '../providers/auth_provider.dart';
 import 'package:provider/provider.dart';
 import '../services/spatial_audio_service.dart';
@@ -31,9 +31,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   int _recordDuration = 3;
   String _language = 'English';
 
-  // System status
-  bool _isCheckingHealth = false;
-  Map<String, dynamic>? _healthData;
+
 
   @override
   void initState() {
@@ -102,9 +100,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
             value: _audioCueStyle == 'Spoken' ? 'Голос' : (_audioCueStyle == 'Tones' ? 'Звуки' : 'Оба'),
             options: ['Голос', 'Звуки', 'Оба'],
             onChanged: (v) => setState(() {
-              if (v == 'Голос') _audioCueStyle = 'Spoken';
-              else if (v == 'Звуки') _audioCueStyle = 'Tones';
-              else _audioCueStyle = 'Both';
+              if (v == 'Голос') {
+                _audioCueStyle = 'Spoken';
+              } else if (v == 'Звуки') {
+                _audioCueStyle = 'Tones';
+              } else {
+                _audioCueStyle = 'Both';
+              }
             }),
           ),
           _buildToggleRow(
@@ -128,7 +130,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           _buildDropdownRow(
             label: 'Длительность записи',
-            value: '${_recordDuration}с',
+            value: '$_recordDurationс',
             options: ['3с', '5с', '7с'],
             onChanged: (v) => setState(() {
               _recordDuration = int.parse(v!.replaceAll('с', ''));
@@ -261,7 +263,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             Switch(
               value: value,
               onChanged: onChanged,
-              activeColor: AppTheme.accentPrimary,
+              activeThumbColor: AppTheme.accentPrimary,
             ),
           ],
         ),
@@ -347,25 +349,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  Widget _buildInfoRow(String label, String value, IconData icon) {
-    return Container(
-      height: AppSizes.touchMinimum,
-      margin: const EdgeInsets.only(bottom: 4),
-      child: Row(
-        children: [
-          Icon(icon, color: AppTheme.textMuted, size: 20),
-          const SizedBox(width: 12),
-          Text(label,
-              style: const TextStyle(
-                  color: AppTheme.textPrimary, fontSize: 15)),
-          const Spacer(),
-          Text(value,
-              style: const TextStyle(
-                  color: AppTheme.textSecondary, fontSize: 14)),
-        ],
-      ),
-    );
-  }
+
 
   Widget _buildNavigationRow({
     required String label,
@@ -414,36 +398,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  Widget _buildCheckConnectionButton() {
-    return AccessibleButton(
-      onTap: _checkConnection,
-      label: _isCheckingHealth ? 'Проверка...' : 'Проверить соединение',
-      icon: Icons.wifi_find_rounded,
-      color: AppTheme.surfaceElevated,
-      textColor: AppTheme.textPrimary,
-      enabled: !_isCheckingHealth,
-    );
-  }
 
-  Future<void> _checkConnection() async {
-    setState(() {
-      _isCheckingHealth = true;
-      _healthData = null;
-    });
-
-    try {
-      final data = await WayFinderApi.health().timeout(
-        const Duration(seconds: 10),
-      );
-      setState(() => _healthData = data);
-      announceToScreenReader('Сервер подключен. Система работает нормально.');
-    } catch (e) {
-      setState(() => _healthData = {'status': 'error', 'error': e.toString()});
-      announceToScreenReader('Ошибка подключения к серверу.');
-    } finally {
-      setState(() => _isCheckingHealth = false);
-    }
-  }
 
   Widget _buildRepeatInstructionButton() {
     return Semantics(
@@ -497,47 +452,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  Widget _buildHealthStatus() {
-    if (_healthData == null) return const SizedBox.shrink();
 
-    final isOk = _healthData!['status'] == 'ok';
-    final color = isOk ? AppTheme.safe : AppTheme.danger;
-
-    return Container(
-      margin: const EdgeInsets.only(top: 12),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.08),
-        borderRadius: BorderRadius.circular(AppSizes.radiusM),
-        border: Border.all(color: color.withOpacity(0.3)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(isOk ? Icons.check_circle_rounded : Icons.error_rounded,
-                  color: color, size: 20),
-              const SizedBox(width: 8),
-              Text(
-                isOk ? 'Система исправна' : 'Ошибка подключения',
-                style: TextStyle(
-                    color: color, fontSize: 15, fontWeight: FontWeight.w600),
-              ),
-            ],
-          ),
-          if (isOk) ...[
-            const SizedBox(height: 8),
-            Text(
-              'Движок: ${_healthData!['engine_mode'] ?? 'неизвестно'}\n'
-              'GPU: ${_healthData!['gpu_available'] == true ? _healthData!['gpu_name'] : 'Нет (режим симуляции)'}',
-              style: const TextStyle(color: AppTheme.textMuted, fontSize: 13, height: 1.5),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
 
   Widget _buildSignOutButton() {
     return Semantics(

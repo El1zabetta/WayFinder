@@ -1,5 +1,6 @@
 /// WayFinder 3.0 — Permissions Screen
 /// Camera + Mic + Internet permissions with clear, accessible human explanations.
+library;
 
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';

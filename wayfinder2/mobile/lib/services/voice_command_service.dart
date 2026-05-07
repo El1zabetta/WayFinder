@@ -1,11 +1,11 @@
 /// WayFinder 2.0 — Voice Command Service
 /// Listens for voice commands for hands-free navigation control.
 /// Uses speech_to_text with keyword extraction for WayFinder commands.
+library;
 
 import 'package:flutter/foundation.dart';
-import 'package:logger/logger.dart';
 
-final _log = Logger(printer: PrettyPrinter(methodCount: 0));
+
 
 /// Recognized WayFinder voice commands
 enum VoiceCommand {
@@ -31,7 +31,7 @@ class VoiceCommandResult {
 }
 
 class VoiceCommandService extends ChangeNotifier {
-  bool _isListening = false;
+  final bool _isListening = false;
   String _lastTranscript = '';
   VoiceCommandResult? _lastCommand;
 

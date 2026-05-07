@@ -1,6 +1,7 @@
 /// WayFinder 2.0 — Home Screen
 /// Voice-first dashboard with large touch targets for accessibility.
 /// Follows WCAG AAA contrast standards for visually impaired users.
+library;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -41,9 +42,9 @@ class _HomeScreenState extends State<HomeScreen> {
       body: Stack(
         children: [
           // Background glow
-          Positioned.fill(
+          const Positioned.fill(
             child: DecoratedBox(
-              decoration: const BoxDecoration(
+              decoration: BoxDecoration(
                 gradient: AppTheme.bgGlow,
               ),
             ),

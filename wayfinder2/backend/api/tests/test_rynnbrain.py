@@ -4,6 +4,7 @@ from django.test import TestCase, Client
 from django.urls import reverse
 from rest_framework import status
 from PIL import Image
+from api.scene_memory import scene_memory
 import cv2
 import numpy as np
 
@@ -14,6 +15,7 @@ class RynnBrainIntegrationTests(TestCase):
     """
 
     def setUp(self):
+        scene_memory.clear()
         self.client = Client()
         self.video_url = reverse('analyze-video')
         self.image_url = reverse('analyze-image')

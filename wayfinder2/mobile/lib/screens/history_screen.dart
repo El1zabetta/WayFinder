@@ -1,5 +1,6 @@
 /// WayFinder 3.0 — History Screen
 /// Fetches real Q&A history from backend API, scoped by authenticated user.
+library;
 
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';

@@ -1,5 +1,6 @@
 /// WayFinder 3.0 — Accessibility Preferences Screen
 /// Detailed control over contrast, text sizes, and haptic intensity.
+library;
 
 import 'package:flutter/material.dart';
 
@@ -119,7 +120,7 @@ class _AccessibilityPrefsScreenState extends State<AccessibilityPrefsScreen> {
             Switch(
               value: value,
               onChanged: onChanged,
-              activeColor: AppTheme.accentPrimary,
+              activeThumbColor: AppTheme.accentPrimary,
             ),
           ],
         ),

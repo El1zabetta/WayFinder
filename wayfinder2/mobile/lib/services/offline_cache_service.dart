@@ -1,6 +1,7 @@
 /// WayFinder 2.0 — Offline Cache Service
 /// Caches last analysis results for offline fallback.
 /// Provides hardcoded safety hints when server is unreachable.
+library;
 
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';

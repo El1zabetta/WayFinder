@@ -1,5 +1,6 @@
 /// WayFinder 3.0 — Auth Screen
 /// Simple Google Sign-In with screen reader support.
+library;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -57,7 +58,7 @@ class _AuthScreenState extends State<AuthScreen> {
                   Container(
                     width: 80,
                     height: 80,
-                    decoration: BoxDecoration(
+                    decoration: const BoxDecoration(
                       shape: BoxShape.circle,
                       gradient: AppTheme.primaryGradient,
                     ),

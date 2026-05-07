@@ -1,6 +1,7 @@
 /// WayFinder 2.0 — Camera Screen
 /// Egocentric video capture with real-time RynnBrain 2B analysis.
 /// Sends short video clips to backend and renders 3D audio + spatial overlays.
+library;
 
 import 'dart:async';
 import 'dart:io';
@@ -8,7 +9,7 @@ import 'dart:io';
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
-import 'package:path_provider/path_provider.dart';
+
 import 'package:provider/provider.dart';
 
 import '../core/app_theme.dart';
@@ -119,6 +120,7 @@ class _CameraScreenState extends State<CameraScreen>
       final audio = SpatialAudioService();
       await audio.speak("Анализ сцены...");
 
+      if (!mounted) return;
       final file = File(videoFile.path);
       final navProvider = context.read<NavigationProvider>();
       final safetyProvider = context.read<SafetyProvider>();
@@ -132,10 +134,12 @@ class _CameraScreenState extends State<CameraScreen>
     } catch (e) {
       debugPrint('Capture error: $e');
     } finally {
-      if (mounted) setState(() {
+      if (mounted) {
+        setState(() {
         _isRecording = false;
         _isAnalyzing = false;
       });
+      }
     }
   }
 

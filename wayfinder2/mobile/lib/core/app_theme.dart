@@ -1,5 +1,6 @@
 /// WayFinder 2.0 — App Theme
 /// Dark, premium glassmorphism design optimized for accessibility
+library;
 
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';

@@ -43,7 +43,7 @@
 2. Open WayFinder.
 3. **Verification:**
    - Screen reader must immediately announce that permissions are denied upon reaching the Home Screen.
-   - A "Повторить" (Retry) button must be accessible and its function clear.
+   - A "Retry" button must be accessible and its function clear.
 
 ## 6. Offline Test
 1. Turn on **Airplane Mode**.

@@ -4,15 +4,26 @@ from rest_framework import status
 from rest_framework.test import APIClient
 from unittest.mock import patch
 from api.models import Message, UserSession
+from api.scene_memory import scene_memory
 import io
 
 class MockUser:
-    def __init__(self, uid):
+    def __init__(self, uid="dev-user", email="dev@example.com"):
         self.uid = uid
+        self.firebase_uid = uid
+        self.email = email
+        self.username = uid
+        self.pk = uid
+        self.id = uid
         self.is_authenticated = True
+        self.is_anonymous = False
+
+    def __str__(self):
+        return self.uid
 
 class DataFlowTests(TestCase):
     def setUp(self):
+        scene_memory.clear()
         self.client_a = APIClient()
         self.user_a = MockUser("uid_A_123")
         self.client_a.force_authenticate(user=self.user_a)
@@ -40,9 +51,16 @@ class DataFlowTests(TestCase):
         
         mock_answer.return_value = MockAnswer()
 
+        from PIL import Image
+        import io
+        img_file = io.BytesIO()
+        Image.new('RGB', (10, 10), color='red').save(img_file, 'jpeg')
+        img_file.name = 'test.jpg'
+        img_file.seek(0)
+        
         response = self.client_a.post(
             reverse('ask-wayfinder'),
-            data={'question': 'What is in front of me?', 'image': io.BytesIO(b"fake_image_data")},
+            data={'question': 'What is in front of me?', 'image': img_file},
             format='multipart'
         )
 
@@ -76,7 +94,10 @@ class DataFlowTests(TestCase):
             threats = []
         
         class MockFacts:
-            pass
+            def __init__(self):
+                import time
+                self.timestamp = time.time()
+                self.objects = []
 
         mock_guidance.return_value = MockGuidance()
         mock_scene_engine.analyze_scene.return_value = MockFacts()
@@ -105,8 +126,15 @@ class DataFlowTests(TestCase):
             audio_cues = []
             confidence = 0.9
             threats = []
+            
+        class MockFacts:
+            def __init__(self):
+                import time
+                self.timestamp = time.time()
+                self.objects = []
         
         mock_guidance.return_value = MockGuidance()
+        mock_scene_engine.analyze_scene.return_value = MockFacts()
         mock_scene_engine.is_mock = True
         mock_scene_engine.is_ready = True
         mock_extract.return_value = [b"frame1"]
@@ -171,3 +199,23 @@ class DataFlowTests(TestCase):
         res_list_b = self.client_b.get(reverse('history-list'))
         self.assertEqual(len(res_list_b.json()['results']), 1)
         self.assertEqual(res_list_b.json()['results'][0]['question'], "User B Question")
+
+    @patch.dict('os.environ', {'ALLOW_DEV_AUTH': 'true'})
+    @patch('django.conf.settings.DEBUG', True)
+    def test_dev_auth_throttling_compatibility(self):
+        """Test that dev auth user works with DRF throttling without errors."""
+        client = APIClient()
+        # Use the dev-token to authenticate via FirebaseAuthentication
+        response = client.get(reverse('history-list'), HTTP_AUTHORIZATION='Bearer dev-token')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        
+        # Test that user properties are set correctly by the middleware/auth class
+        # Access the DRF request object rather than the raw wsgi_request
+        request = response.renderer_context['request']
+        self.assertTrue(hasattr(request.user, 'pk'))
+        self.assertTrue(hasattr(request.user, 'uid'))
+        
+        # We also want to verify no throttling error crashes the request when dev-token is used.
+        response_throttled = client.post(reverse('ask-wayfinder'), data={}, HTTP_AUTHORIZATION='Bearer dev-token')
+        self.assertEqual(response_throttled.status_code, status.HTTP_400_BAD_REQUEST)
+

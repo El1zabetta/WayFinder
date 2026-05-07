@@ -1,6 +1,7 @@
 /// WayFinder 3.0 — Conversation Detail Screen
 /// Fetches and displays a single past Q&A interaction from the backend.
 /// Supports TTS replay of the saved answer.
+library;
 
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';

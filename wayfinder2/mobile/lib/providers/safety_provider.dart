@@ -1,6 +1,7 @@
 /// WayFinder 2.0 — Safety Provider
 /// Continuous threat monitoring state using RynnBrain-CoP
 /// Supports offline fallback with cached safety data and hints.
+library;
 
 import 'dart:async';
 import 'dart:io';
@@ -18,7 +19,7 @@ enum AlertLevel { low, medium, high, critical }
 class SafetyProvider extends ChangeNotifier {
   AlertLevel _alertLevel = AlertLevel.low;
   List<ThreatInfo> _threats = [];
-  bool _monitoringActive = false;
+  final bool _monitoringActive = false;
   String _lastAnalysis = '';
   bool _isOffline = false;
 

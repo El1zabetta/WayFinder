@@ -1,12 +1,13 @@
 /// WayFinder 2.0 — Search Screen
 /// Object search using RynnBrain-Plan with voice input
+library;
 
 import 'dart:io';
 
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
-import 'package:path_provider/path_provider.dart';
+
 
 import '../core/app_theme.dart';
 import '../core/accessibility.dart';

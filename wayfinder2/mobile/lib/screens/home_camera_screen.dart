@@ -8,6 +8,7 @@
 ///   1. Navigate (center, 80×80) — record + analyze
 ///   2. Ask (left, 64×64) — opens Ask Assistant sheet
 ///   3. Settings (right, 56×56)
+library;
 
 import 'dart:async';
 import 'dart:io';
@@ -15,7 +16,7 @@ import 'dart:io';
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
-import 'package:path_provider/path_provider.dart';
+
 import 'package:provider/provider.dart';
 
 import '../core/app_theme.dart';
@@ -23,7 +24,7 @@ import '../core/accessibility.dart';
 import '../core/constants.dart';
 import '../providers/assistant_provider.dart';
 import '../providers/navigation_provider.dart';
-import '../providers/safety_provider.dart';
+
 import '../services/spatial_audio_service.dart';
 import '../services/frame_streaming_service.dart';
 import '../services/wakeword_service.dart';
@@ -176,6 +177,7 @@ class _HomeCameraScreenState extends State<HomeCameraScreen>
       await Future.delayed(AppDurations.recordingLength);
       final videoFile = await _controller!.stopVideoRecording();
 
+      if (!mounted) return;
       HapticPatterns.recordingEnd();
       setState(() => _cameraState = CameraState.analyzing);
       announceToScreenReader('Processing...');
@@ -185,6 +187,7 @@ class _HomeCameraScreenState extends State<HomeCameraScreen>
       final navProvider = context.read<NavigationProvider>();
       await navProvider.analyzeVideoClip(file);
 
+      if (!mounted) return;
       setState(() => _cameraState = CameraState.speaking);
 
       // Haptic feedback for threats
@@ -215,6 +218,7 @@ class _HomeCameraScreenState extends State<HomeCameraScreen>
         
         // NavigationProvider already speaks its own error via TTS,
         // so only speak for camera-level errors here
+        if (!mounted) return;
         final nav = context.read<NavigationProvider>();
         if (nav.state != NavigationState.error) {
           _audio.speak(spokenError);

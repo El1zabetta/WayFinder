@@ -2,6 +2,7 @@
 /// Accessibility-first navigation assistant powered by RynnBrain + DeepSeek.
 ///
 /// Flow: Splash → (Auth) → Home/Camera → Ask | Settings | History
+library;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';

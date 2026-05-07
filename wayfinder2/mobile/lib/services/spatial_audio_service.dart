@@ -1,6 +1,7 @@
 /// WayFinder 2.0 — 3D Spatial Audio Service
 /// Converts RynnBrain spatial coordinates to immersive directional audio cues.
 /// Uses flutter_tts for voice synthesis with left/right panning.
+library;
 
 
 

@@ -1,5 +1,6 @@
 /// WayFinder 3.0 — App Constants
 /// Centralized sizing, durations, and configuration values.
+library;
 
 class AppSizes {
   // Touch targets (WCAG AAA)

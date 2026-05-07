@@ -1,5 +1,6 @@
 /// WayFinder 3.0 — Splash Screen
 /// Auth check, backend health check, fast transition.
+library;
 
 import 'dart:async';
 
@@ -48,6 +49,7 @@ class _SplashScreenState extends State<SplashScreen> {
     if (!mounted) return;
 
     final prefs = await SharedPreferences.getInstance();
+    if (!mounted) return;
     final hasSeenOnboarding = prefs.getBool('has_seen_onboarding') ?? false;
 
     if (!hasSeenOnboarding) {
@@ -57,18 +59,18 @@ class _SplashScreenState extends State<SplashScreen> {
 
     final camera = await Permission.camera.status;
     final mic = await Permission.microphone.status;
+    if (!mounted) return;
+    
     if (!camera.isGranted || !mic.isGranted) {
       Navigator.pushReplacementNamed(context, '/permissions');
       return;
     }
 
-    if (mounted) {
-      final auth = context.read<AuthProvider>();
-      if (auth.isAuthenticated) {
-        Navigator.pushReplacementNamed(context, '/home');
-      } else {
-        Navigator.pushReplacementNamed(context, '/auth');
-      }
+    final auth = context.read<AuthProvider>();
+    if (auth.isAuthenticated) {
+      Navigator.pushReplacementNamed(context, '/home');
+    } else {
+      Navigator.pushReplacementNamed(context, '/auth');
     }
   }
 

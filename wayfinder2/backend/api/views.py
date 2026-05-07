@@ -99,7 +99,7 @@ def analyze_video(request: Request) -> Response:
         elapsed = round((time.monotonic() - t0) * 1000, 1)
 
         # Build response compatible with existing Flutter frontend
-        return Response({
+        response_data = {
             # New structured fields
             "primary_instruction": nav.primary_instruction,
             "scene_summary": nav.scene_summary,
@@ -118,7 +118,7 @@ def analyze_video(request: Request) -> Response:
             "frames_analyzed": len(frames),
             "inference_ms": elapsed,
             "engine_mode": "mock" if scene_engine.is_mock else "gpu",
-        })
+        }
 
         logger.debug(f"[analyze_video] Request successful for {getattr(request.user, 'uid', 'anonymous')}")
         
@@ -171,7 +171,7 @@ def analyze_image(request: Request) -> Response:
         scene_memory.store(facts)
         nav = generate_guidance(facts)
 
-        return Response({
+        response_data = {
             "primary_instruction": nav.primary_instruction,
             "scene_summary": nav.scene_summary,
             "alert_level": nav.alert_level,
@@ -183,7 +183,7 @@ def analyze_image(request: Request) -> Response:
             "audio_cues": nav.audio_cues,
             "confidence": nav.confidence,
             "inference_ms": round((time.monotonic() - t0) * 1000, 1),
-        })
+        }
 
         logger.debug(f"[analyze_image] Request successful for {getattr(request.user, 'uid', 'anonymous')}")
 
@@ -554,7 +554,7 @@ def health(request: Request) -> Response:
 
 def _save_interaction(request, question, qa_resp, source, elapsed):
     """Persist a successful Q&A interaction to both legacy and new models."""
-    from .models import AssistantInteraction, Message
+    from .models import AssistantInteraction, Message, UserSession
 
     try:
         uid = getattr(request.user, 'uid', None)

@@ -1,4 +1,5 @@
 /// WayFinder 2.0 — Glass Card Widget
+library;
 import 'package:flutter/material.dart';
 import '../core/app_theme.dart';
 

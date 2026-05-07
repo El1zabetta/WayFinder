@@ -1,6 +1,7 @@
 /// WayFinder 2.0 — Connectivity Service
 /// Monitors server reachability with periodic health checks.
 /// Provides [isOnline] stream for reactive offline/online UI.
+library;
 
 import 'dart:async';
 import 'package:flutter/foundation.dart';

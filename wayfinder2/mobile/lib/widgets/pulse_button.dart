@@ -1,4 +1,5 @@
 /// WayFinder 2.0 — Status Indicator + Pulse Button Widgets
+library;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';

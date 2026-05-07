@@ -1,5 +1,6 @@
 /// WayFinder 2.0 — Threat Overlay Widget
 /// Draws colored bounding boxes over camera preview for detected threats.
+library;
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';

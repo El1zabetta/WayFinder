@@ -1,5 +1,6 @@
 /// WayFinder 3.0 — Auth Provider
 /// Manages Firebase Authentication and Google Sign-In state.
+library;
 
 import 'package:flutter/foundation.dart';
 import 'package:firebase_auth/firebase_auth.dart';

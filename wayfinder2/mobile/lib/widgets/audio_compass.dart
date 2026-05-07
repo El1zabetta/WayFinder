@@ -1,5 +1,6 @@
 /// WayFinder 2.0 — Audio Compass Widget
 /// Visual representation of 3D spatial audio cues on a horizontal compass arc.
+library;
 
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
@@ -22,12 +23,12 @@ class AudioCompass extends StatelessWidget {
       ),
       child: CustomPaint(
         painter: _CompassPainter(cues),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        child: const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             crossAxisAlignment: CrossAxisAlignment.end,
-            children: const [
+            children: [
               Text('Л', style: TextStyle(color: AppTheme.textMuted, fontSize: 11)),
               Text('ЦЕНТР', style: TextStyle(color: AppTheme.textSecondary, fontSize: 10)),
               Text('П', style: TextStyle(color: AppTheme.textMuted, fontSize: 11)),

@@ -1,6 +1,7 @@
 /// WayFinder 2.0 — Backend API Client
 /// Communicates with Django RynnBrain 2B backend via HTTP + WebSocket
 /// Sends Firebase ID token as Bearer auth on all protected endpoints.
+library;
 
 import 'dart:async';
 import 'dart:convert';

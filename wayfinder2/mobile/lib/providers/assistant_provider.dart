@@ -3,6 +3,7 @@
 /// Handles: listening → processing → answering → done cycle.
 /// Includes structured error handling with user-friendly spoken feedback.
 /// Supports offline fallback with cached Q&A answers.
+library;
 
 import 'dart:io';
 

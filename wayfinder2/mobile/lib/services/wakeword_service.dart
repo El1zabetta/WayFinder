@@ -1,6 +1,7 @@
 /// WayFinder 3.0 — Wakeword Service
 /// Uses Porcupine to listen for the "WayFinder" (.ppn file) wake word offline.
 /// Gracefully disables if Picovoice access key is not provided.
+library;
 
 import 'dart:io';
 import 'package:flutter/foundation.dart';
@@ -47,7 +48,7 @@ class WakewordService extends ChangeNotifier {
     }
 
     try {
-      final accessKey = Secrets.picovoiceAccessKey;
+      const accessKey = Secrets.picovoiceAccessKey;
 
       // Use platform-specific .ppn file paths
       final String keywordPath = Platform.isAndroid
