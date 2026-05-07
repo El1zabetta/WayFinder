@@ -42,6 +42,17 @@ class UserSession(models.Model):
     def message_count(self):
         return self.messages.count()
 
+    @classmethod
+    def get_or_create_active_session(cls, firebase_uid):
+        """
+        Helper for MVP: Get the current active session or create a new one.
+        Groups all interactions for this user.
+        """
+        session = cls.objects.filter(firebase_uid=firebase_uid, is_active=True).first()
+        if not session:
+            session = cls.objects.create(firebase_uid=firebase_uid)
+        return session
+
 
 class Message(models.Model):
     """

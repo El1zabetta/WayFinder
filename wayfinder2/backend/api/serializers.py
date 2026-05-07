@@ -64,10 +64,13 @@ class MessageListSerializer(serializers.ModelSerializer):
 # ─── Legacy (backward compatibility) ─────────────────────────────────────────
 
 class InteractionListSerializer(serializers.ModelSerializer):
-    """Compact serializer for legacy history list view."""
+    """Compact serializer for legacy history list view, backed by Message."""
+    question = serializers.CharField(source='question_text')
+    answer = serializers.CharField(source='ai_response')
+    created_at = serializers.DateTimeField(source='timestamp')
 
     class Meta:
-        model = AssistantInteraction
+        model = Message
         fields = [
             "id",
             "question",
@@ -79,10 +82,13 @@ class InteractionListSerializer(serializers.ModelSerializer):
 
 
 class InteractionDetailSerializer(serializers.ModelSerializer):
-    """Full serializer for legacy single interaction detail."""
+    """Full serializer for legacy single interaction detail, backed by Message."""
+    question = serializers.CharField(source='question_text')
+    answer = serializers.CharField(source='ai_response')
+    created_at = serializers.DateTimeField(source='timestamp')
 
     class Meta:
-        model = AssistantInteraction
+        model = Message
         fields = [
             "id",
             "question",

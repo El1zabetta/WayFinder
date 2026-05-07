@@ -56,23 +56,23 @@ class AssistantProvider extends ChangeNotifier {
   String get stateText {
     switch (_state) {
       case AssistantState.idle:
-        return 'Wake word выключен';
+        return 'Wake word disabled';
       case AssistantState.wakeWordListening:
-        return 'Слушаю слово WayFinder';
+        return 'Listening for WayFinder';
       case AssistantState.wakeWordDetected:
-        return 'WayFinder активирован';
+        return 'WayFinder activated';
       case AssistantState.listening:
-        return 'Слушаю вопрос';
+        return 'Listening to question';
       case AssistantState.processing:
-        return 'Отправляю вопрос';
+        return 'Sending question';
       case AssistantState.answering:
-        return 'Ответ готов';
+        return 'Answer ready';
       case AssistantState.done:
-        return 'Ответ озвучен';
+        return 'Answer spoken';
       case AssistantState.error:
-        return 'Ошибка';
+        return 'Error';
       case AssistantState.offline:
-        return 'Оффлайн';
+        return 'Offline';
     }
   }
 
@@ -129,7 +129,7 @@ class AssistantProvider extends ChangeNotifier {
       // Speak the answer — prefix with uncertainty if low confidence
       String spokenAnswer = result.answer;
       if (result.confidence < 0.5 && result.confidence > 0.0) {
-        spokenAnswer = "Я не совсем уверен, но $spokenAnswer";
+        spokenAnswer = "I'm not entirely sure, but $spokenAnswer";
       }
       await _audio.speak(spokenAnswer);
 
@@ -146,18 +146,18 @@ class AssistantProvider extends ChangeNotifier {
         if (cachedAnswer != null) {
           _answer = cachedAnswer;
           _confidence = 0.0;
-          _errorMessage = 'Оффлайн режим. Показываю сохраненный ответ.';
+          _errorMessage = 'Offline mode. Showing cached answer.';
           _setState(AssistantState.offline);
           await _audio.speak(
-            'Сервер недоступен. Из моей памяти: $cachedAnswer',
+            'Server unreachable. From my memory: $cachedAnswer',
           );
           return;
         } else {
-          _errorMessage = 'Оффлайн. Нет сохраненного ответа на этот вопрос.';
+          _errorMessage = 'Offline. No cached answer for this question.';
           _setState(AssistantState.offline);
           await _audio.speak(
-            'Сервер недоступен. У меня нет сохраненного ответа на этот вопрос. '
-            'Пожалуйста, попробуйте еще раз, когда появится интернет.',
+            'Server unreachable. I have no cached answer for this question. '
+            'Please try again when you have an internet connection.',
           );
           return;
         }
@@ -169,17 +169,17 @@ class AssistantProvider extends ChangeNotifier {
 
       // Speak a clear, specific error message
       if (e.isAuth) {
-        await _audio.speak('Ваша сессия истекла. Пожалуйста, войдите снова.');
+        await _audio.speak('Your session has expired. Please sign in again.');
       } else {
-        await _audio.speak("Я не могу ответить на это прямо сейчас. Пожалуйста, попробуйте еще раз.");
+        await _audio.speak("I cannot answer this right now. Please try again.");
       }
     } catch (e) {
       _log.e('Ask-Wayfinder unexpected error: $e');
-      _errorMessage = 'Произошла непредвиденная ошибка. Пожалуйста, попробуйте еще раз.';
+      _errorMessage = 'An unexpected error occurred. Please try again.';
       _isAuthError = false;
       _answer = '';
       _setState(AssistantState.error);
-      await _audio.speak("Что-то пошло не так. Пожалуйста, попробуйте еще раз.");
+      await _audio.speak("Something went wrong. Please try again.");
     }
   }
 

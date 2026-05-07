@@ -120,6 +120,20 @@ def analyze_video(request: Request) -> Response:
             "engine_mode": "mock" if scene_engine.is_mock else "gpu",
         })
 
+        logger.debug(f"[analyze_video] Request successful for {getattr(request.user, 'uid', 'anonymous')}")
+        
+        # Save to database (derived text only)
+        _save_analyze_interaction(
+            request=request,
+            guidance_text=nav.primary_instruction + " " + nav.scene_summary,
+            threat_level=nav.alert_level,
+            source="mock" if scene_engine.is_mock else "gpu",
+            confidence=nav.confidence,
+            elapsed=elapsed
+        )
+
+        return Response(response_data)
+
     except RuntimeError as e:
         logger.error(f"[analyze_video] RuntimeError: {e}")
         return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
@@ -170,6 +184,20 @@ def analyze_image(request: Request) -> Response:
             "confidence": nav.confidence,
             "inference_ms": round((time.monotonic() - t0) * 1000, 1),
         })
+
+        logger.debug(f"[analyze_image] Request successful for {getattr(request.user, 'uid', 'anonymous')}")
+
+        # Save to database
+        _save_analyze_interaction(
+            request=request,
+            guidance_text=nav.primary_instruction + " " + nav.scene_summary,
+            threat_level=nav.alert_level,
+            source="mock" if scene_engine.is_mock else "gpu",
+            confidence=nav.confidence,
+            elapsed=round((time.monotonic() - t0) * 1000, 1)
+        )
+
+        return Response(response_data)
 
     except Exception as e:
         logger.exception("[analyze_image] Error")
@@ -440,13 +468,15 @@ def history_list(request: Request) -> Response:
     Returns the authenticated user's Q&A history, most recent first.
     Query params: ?limit=N (default 50)
     """
-    from .models import AssistantInteraction
+    from .models import Message
     from .serializers import InteractionListSerializer
 
     uid = request.user.uid
     limit = min(int(request.query_params.get("limit", 50)), 200)
 
-    interactions = AssistantInteraction.objects.filter(
+    logger.debug(f"[history_list] Fetching history for {uid[:8]}")
+
+    interactions = Message.objects.filter(
         firebase_uid=uid
     )[:limit]
 
@@ -464,17 +494,19 @@ def history_detail(request: Request, interaction_id: int) -> Response:
 
     Returns detail for a single interaction, scoped to the authenticated user.
     """
-    from .models import AssistantInteraction
+    from .models import Message
     from .serializers import InteractionDetailSerializer
 
     uid = request.user.uid
 
+    logger.debug(f"[history_detail] Fetching interaction {interaction_id} for {uid[:8]}")
+
     try:
-        interaction = AssistantInteraction.objects.get(
+        interaction = Message.objects.get(
             id=interaction_id,
             firebase_uid=uid,
         )
-    except AssistantInteraction.DoesNotExist:
+    except Message.DoesNotExist:
         return Response(
             {"error": "Interaction not found."},
             status=status.HTTP_404_NOT_FOUND,
@@ -543,9 +575,17 @@ def _save_interaction(request, question, qa_resp, source, elapsed):
 
         # New Message model (with session link if available)
         session_id = request.data.get("session_id")
+        if session_id:
+            try:
+                session = UserSession.objects.get(id=session_id, firebase_uid=uid)
+            except UserSession.DoesNotExist:
+                session = UserSession.get_or_create_active_session(uid)
+        else:
+            session = UserSession.get_or_create_active_session(uid)
+
         Message.objects.create(
             firebase_uid=uid,
-            session_id=session_id if session_id else None,
+            session=session,
             question_text=question,
             ai_response=qa_resp.answer,
             confidence=qa_resp.confidence,
@@ -558,6 +598,43 @@ def _save_interaction(request, question, qa_resp, source, elapsed):
         logger.debug(f"[ask_wayfinder] Saved interaction for {uid[:8]}")
     except Exception as e:
         logger.warning(f"[ask_wayfinder] Failed to save interaction: {e}")
+
+def _save_analyze_interaction(request, guidance_text, threat_level, source, confidence, elapsed):
+    """Persist an analysis interaction to the new Message model."""
+    from .models import Message, UserSession
+
+    try:
+        uid = getattr(request.user, 'uid', None)
+        if not uid:
+            return  # Anonymous — skip
+
+        session_id = request.data.get("session_id")
+        if session_id:
+            try:
+                session = UserSession.objects.get(id=session_id, firebase_uid=uid)
+            except UserSession.DoesNotExist:
+                session = UserSession.get_or_create_active_session(uid)
+        else:
+            session = UserSession.get_or_create_active_session(uid)
+
+        # We format ai_response to include guidance and threat level
+        ai_response = f"{guidance_text} (Alert Level: {threat_level})"
+
+        Message.objects.create(
+            firebase_uid=uid,
+            session=session,
+            question_text="Analyze Surroundings",  # Standardized input for analyze
+            ai_response=ai_response,
+            confidence=confidence,
+            grounded=True,
+            source=source or "",
+            interaction_type="analyze",
+            inference_ms=elapsed,
+        )
+
+        logger.debug(f"[analyze] Saved interaction for {uid[:8]}")
+    except Exception as e:
+        logger.warning(f"[analyze] Failed to save interaction: {e}")
 
 
 def _instruction_to_action(instruction: str) -> str:
