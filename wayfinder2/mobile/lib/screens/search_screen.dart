@@ -9,6 +9,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../core/app_theme.dart';
+import '../core/accessibility.dart';
 import '../services/api_client.dart';
 import '../services/spatial_audio_service.dart';
 import '../widgets/glass_card.dart';

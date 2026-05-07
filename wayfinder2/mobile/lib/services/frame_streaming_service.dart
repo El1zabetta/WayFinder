@@ -6,7 +6,6 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
-import 'dart:ui' as ui;
 
 import 'package:camera/camera.dart';
 import 'package:flutter/foundation.dart';
@@ -46,9 +45,6 @@ class StreamAnalysis {
 
 class FrameStreamingService extends ChangeNotifier {
   static const String _wsPath = '/ws/navigate/';
-  static const int _targetWidth = 640;    // 480p width
-  static const int _targetHeight = 480;   // 480p height
-  static const int _jpegQuality = 75;     // JPEG compression quality
   static const double _diffThreshold = 0.15; // 15% change threshold
   static const Duration _reconnectDelay = Duration(seconds: 3);
   static const Duration _pingInterval = Duration(seconds: 15);
@@ -59,6 +55,7 @@ class FrameStreamingService extends ChangeNotifier {
   StreamSubscription? _subscription;
   Timer? _pingTimer;
   Timer? _reconnectTimer;
+  // ignore: unused_field
   Timer? _latencyTimer;
 
   bool _connected = false;

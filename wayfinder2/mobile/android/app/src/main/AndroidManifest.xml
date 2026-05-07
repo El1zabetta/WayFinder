@@ -18,10 +18,9 @@
     <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />
 
     <application
-        android:label="WayFinder 2.0"
+        android:label="WayFinder"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher"
-        android:usesCleartextTraffic="true">
+        android:icon="@mipmap/ic_launcher">
         <activity
             android:name="com.wayfinder.wayfinder2.MainActivity"
             android:exported="true"

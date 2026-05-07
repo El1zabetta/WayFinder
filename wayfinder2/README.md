@@ -1,7 +1,7 @@
 # WayFinder 2.0
 > Powered by **RynnBrain 2B** — Egocentric AI Navigation Assistant
 
-## Архитектура
+## Architecture
 
 ```
 wayfinder2/
@@ -64,71 +64,71 @@ wayfinder2/
 | `plan` | RynnBrain-Plan | Object search, affordance grounding, task planning |
 | `base` | RynnBrain-2B | General egocentric scene understanding |
 
-## Запуск Backend
+## Starting the Backend
 
 ```bash
-# 1. Создать виртуальное окружение
+# 1. Create a virtual environment
 python -m venv venv
 venv\Scripts\activate        # Windows
 source venv/bin/activate     # Linux/Mac
 
-# 2. Установить зависимости
+# 2. Install dependencies
 cd wayfinder2/backend
 pip install -r requirements.txt
 
-# 3. Задать путь к модели (или оставить HuggingFace Hub путь)
-set RYNNBRAIN_MODEL_PATH=Alibaba-DAMO-Academy/RynnBrain-2B   # или локальный путь
+# 3. Set the model path (or leave default HuggingFace Hub path)
+export RYNNBRAIN_MODEL_PATH=Alibaba-DAMO-Academy/RynnBrain-2B   # or local path
 
-# 4. Запустить Daphne ASGI сервер
+# 4. Start the Daphne ASGI server
 daphne -b 0.0.0.0 -p 8000 wayfinder.asgi:application
 
-# Или через Django dev server (только HTTP)
+# Or via Django dev server (HTTP only)
 python manage.py runserver 0.0.0.0:8000
 ```
 
-### Переменные окружения
+### Environment Variables
 
-| Переменная | По умолчанию | Описание |
+| Variable | Default | Description |
 |---|---|---|
-| `RYNNBRAIN_MODEL_PATH` | `Alibaba-DAMO-Academy/RynnBrain-2B` | Путь к модели |
+| `RYNNBRAIN_MODEL_PATH` | `Alibaba-DAMO-Academy/RynnBrain-2B` | Path to the model |
 | `DJANGO_SECRET_KEY` | dev key | Django secret |
 | `DEBUG` | `True` | Debug mode |
 
-## Запуск Flutter App
+## Starting the Flutter App
 
 ```bash
 cd wayfinder2/mobile
 
-# Установить зависимости
+# Install dependencies
 flutter pub get
 
-# Запустить на устройстве/эмуляторе
+# Run on device/emulator
 flutter run
 
-# Сборка APK
+# Build APK
 flutter build apk --release
 ```
 
-> **Совет:** Для Android эмулятора backend URL = `http://10.0.2.2:8000/api/v2`  
-> Для реального устройства = IP вашего компьютера в локальной сети
+> **Tip:** For Android emulator, the backend URL is `http://10.0.2.2:8000/api/v2`  
+> For a real device, it is the IP of your computer on the local network.
 
-## Системные требования
+## System Requirements
 
-- **GPU**: NVIDIA с поддержкой CUDA 12+ (рекомендуется 16GB+ VRAM для RynnBrain-2B)
+- **GPU**: NVIDIA with CUDA 12+ support (16GB+ VRAM recommended for RynnBrain-2B)
 - **RAM**: 16GB+
-- **CPU**: Работает в mock-режиме без GPU (для разработки)
+- **CPU**: Runs in mock-mode without GPU (for development)
 - **Python**: 3.11+
 - **Flutter**: 3.22+
 
 ## Spatiotemporal Grounding
 
-RynnBrain-2B использует нормализованные координаты **[0–1000]** для всех пространственных выходов:
+RynnBrain-2B uses normalized coordinates **[0–1000]** for all spatial outputs:
 
 ```
-<object> x1,y1,x2,y2 </object>   → Bounding box объекта
-<area> x1,y1,...,xn,yn </area>   → Полигон зоны
-<trajectory> x1,y1,...,xn,yn </trajectory> → Траектория движения
-<frame N> → Привязка к кадру видео
+<object> x1,y1,x2,y2 </object>   → Object bounding box
+<area> x1,y1,...,xn,yn </area>   → Zone polygon
+<trajectory> x1,y1,...,xn,yn </trajectory> → Movement trajectory
+<frame N> → Binding to video frame
 ```
 
-WayFinder преобразует эти координаты → **azimuth/elevation** → **3D audio panning**.
+WayFinder transforms these coordinates → **azimuth/elevation** → **3D audio panning**.

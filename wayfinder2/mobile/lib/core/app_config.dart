@@ -1,32 +1,37 @@
 import 'package:flutter/foundation.dart';
 
 /// WayFinder 3.0 — Environment Configuration
-/// Manages API URLs and feature flags for different build flavors.
+/// Manages API URLs and feature flags via --dart-define.
 class AppConfig {
-  static const String devBaseUrl = 'http://localhost:8000/api/v2';
-  static const String devWsUrl = 'ws://localhost:8000/ws';
-  
-  static const String prodBaseUrl = 'https://api.wayfinder-ai.com/api/v2';
-  static const String prodWsUrl = 'wss://api.wayfinder-ai.com/ws';
+  /// Defines the environment: 'dev', 'staging', 'prod'
+  static const String appEnv = String.fromEnvironment('APP_ENV', defaultValue: kReleaseMode ? 'prod' : 'dev');
 
-  /// Returns the base API URL based on build mode.
-  /// To use production in debug mode, manually change this or use flavors.
+  /// Base URL for REST API.
   static String get baseUrl {
-    if (kReleaseMode) {
-      return prodBaseUrl;
+    const String envUrl = String.fromEnvironment('API_BASE_URL');
+    if (envUrl.isNotEmpty) return envUrl;
+
+    // Fallbacks for convenience in development
+    if (appEnv == 'prod') {
+      return 'https://api.wayfinder-ai.com/api/v2';
     }
-    return devBaseUrl;
+    // Android emulator default
+    return 'http://10.0.2.2:8000/api/v2';
   }
 
-  /// Returns the WebSocket URL based on build mode.
+  /// WebSocket URL.
   static String get wsUrl {
-    if (kReleaseMode) {
-      return prodWsUrl;
+    const String envUrl = String.fromEnvironment('WS_BASE_URL');
+    if (envUrl.isNotEmpty) return envUrl;
+
+    if (appEnv == 'prod') {
+      return 'wss://api.wayfinder-ai.com/ws';
     }
-    return devWsUrl;
+    // Android emulator default
+    return 'ws://10.0.2.2:8000/ws';
   }
 
-  static bool get isProduction => kReleaseMode;
+  static bool get isProduction => appEnv == 'prod';
   
   static const String appName = 'WayFinder';
   static const String version = '3.0.0';

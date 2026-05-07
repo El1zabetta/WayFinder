@@ -1,0 +1,44 @@
+# WayFinder 2.0 Root .gitignore
+
+# Environment & Secrets
+.env
+.env.production
+.env.local
+firebase-credentials*.json
+serviceAccount*.json
+google-services.json
+GoogleService-Info.plist
+
+# DO NOT ignore templates
+!.env.example
+!google-services.example.json
+!GoogleService-Info.example.plist
+!key.properties.example
+
+# Keystores
+*.jks
+*.keystore
+key.properties
+
+# Build & Caches
+build/
+.dart_tool/
+__pycache__/
+*.pyc
+.pytest_cache/
+.mypy_cache/
+
+# OS & Logs
+.DS_Store
+Thumbs.db
+*.log
+*.tmp
+*.bak
+
+# IDEs
+.idea/
+.vscode/
+
+# Venv
+venv/
+env/

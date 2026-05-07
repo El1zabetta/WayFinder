@@ -354,18 +354,7 @@ class _AskAssistantSheetState extends State<AskAssistantSheet> {
       ),
     );
   }
-                      ? AppTheme.textPrimary
-                      : AppTheme.textMuted,
-                  fontSize: 16,
-                  height: 1.4,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+
 
   // ─── Transcript Area ───────────────────────────────────────────────────
 

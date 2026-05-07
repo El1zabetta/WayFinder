@@ -16,6 +16,7 @@ import 'providers/safety_provider.dart';
 import 'providers/assistant_provider.dart';
 import 'providers/auth_provider.dart';
 import 'services/wakeword_service.dart';
+import 'services/frame_streaming_service.dart';
 import 'screens/splash_screen.dart';
 import 'screens/auth_screen.dart';
 import 'screens/onboarding_screen.dart';
@@ -57,6 +58,7 @@ void main() async {
         ChangeNotifierProvider(create: (_) => AssistantProvider()),
         ChangeNotifierProvider(create: (_) => AuthProvider()),
         ChangeNotifierProvider(create: (_) => WakewordService()..init()),
+        ChangeNotifierProvider(create: (_) => FrameStreamingService()),
       ],
       child: const WayFinderApp(),
     ),

@@ -152,6 +152,23 @@ class FirebaseAuthentication(BaseAuthentication):
 
         token = parts[1]
 
+        # ─── Dev Auth Mode ────────────────────────────────────────────
+        # Only available when DEBUG=True AND ALLOW_DEV_AUTH=True
+        # Accepts 'Bearer dev-token' for local development without Firebase.
+        # NEVER enabled in production.
+        from django.conf import settings
+        if (getattr(settings, 'DEBUG', False) and
+                os.environ.get('ALLOW_DEV_AUTH', '').lower() in ('true', '1', 'yes')):
+            if token == 'dev-token':
+                logger.warning("[Firebase Auth] DEV AUTH MODE — skipping Firebase validation.")
+                user = FirebaseUser(
+                    uid='dev-user-001',
+                    email='dev@wayfinder.local',
+                    name='Dev User',
+                    claims={'dev_mode': True},
+                )
+                return (user, {'uid': 'dev-user-001', 'dev_mode': True})
+
         if not _firebase_app:
             raise AuthenticationFailed(
                 "Firebase is not configured on this server. Contact the administrator."

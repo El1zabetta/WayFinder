@@ -117,7 +117,13 @@ STATIC_ROOT = BASE_DIR / "staticfiles"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 # ─── CORS ───────────────────────────────────────────────────────────────────────
-CORS_ALLOW_ALL_ORIGINS = True
+# Production: explicit whitelist; Dev: allow all for convenience
+_cors_origins = os.environ.get("CORS_ALLOWED_ORIGINS", "")
+if _cors_origins:
+    CORS_ALLOW_ALL_ORIGINS = False
+    CORS_ALLOWED_ORIGINS = [o.strip() for o in _cors_origins.split(",") if o.strip()]
+else:
+    CORS_ALLOW_ALL_ORIGINS = DEBUG  # Only allow all in debug mode
 CORS_ALLOW_CREDENTIALS = True
 
 # ─── REST Framework ────────────────────────────────────────────────────────────
@@ -135,7 +141,29 @@ REST_FRAMEWORK = {
     "DEFAULT_PERMISSION_CLASSES": [
         "rest_framework.permissions.IsAuthenticated",
     ],
+    "DEFAULT_THROTTLE_CLASSES": [
+        "rest_framework.throttling.AnonRateThrottle",
+        "rest_framework.throttling.UserRateThrottle",
+    ],
+    "DEFAULT_THROTTLE_RATES": {
+        "anon": "20/minute",
+        "user": "60/minute",
+    },
 }
+
+# ─── Upload Limits ──────────────────────────────────────────────────────────────
+DATA_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024  # 10MB
+FILE_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024  # 10MB
+
+# ─── Production Security ───────────────────────────────────────────────────────
+if not DEBUG:
+    SECURE_SSL_REDIRECT = True
+    SECURE_HSTS_SECONDS = 31536000
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SECURE_BROWSER_XSS_FILTER = True
+    SECURE_CONTENT_TYPE_NOSNIFF = True
 
 # ─── Celery (Redis Queue) ──────────────────────────────────────────────────────
 CELERY_BROKER_URL = REDIS_URL if REDIS_URL else "redis://localhost:6379/1"
@@ -152,7 +180,7 @@ RYNNBRAIN_MODEL_PATH = os.environ.get(
 # Video processing
 VIDEO_FPS = 2           # frames per second — optimized for 2B model real-time
 VIDEO_MAX_FRAMES = 8    # reduced for faster processing and lower latency
-MAX_VIDEO_SIZE_MB = 50
+MAX_VIDEO_SIZE_MB = int(os.environ.get("MAX_UPLOAD_SIZE_MB", "10"))
 
 # 3D Audio spatial resolution (degrees)
 SPATIAL_AUDIO_PRECISION = 15

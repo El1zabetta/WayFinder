@@ -1,5 +1,6 @@
 /// WayFinder 3.0 — Wakeword Service
 /// Uses Porcupine to listen for the "WayFinder" (.ppn file) wake word offline.
+/// Gracefully disables if Picovoice access key is not provided.
 
 import 'dart:io';
 import 'package:flutter/foundation.dart';
@@ -16,24 +17,41 @@ class WakewordService extends ChangeNotifier {
   PorcupineManager? _porcupineManager;
   bool _isListening = false;
   bool _isInitialized = false;
+  bool _isDisabled = false;
+  String? _disabledReason;
 
   bool get isListening => _isListening;
   bool get isInitialized => _isInitialized;
+  bool get isDisabled => _isDisabled;
+  String? get disabledReason => _disabledReason;
 
   // Callback when wakeword is detected
   VoidCallback? onWakewordDetected;
 
-  /// Initialize Porcupine with the custom .ppn file
+  /// Initialize Porcupine with the custom .ppn file.
+  /// If access key is missing or init fails, service enters disabled mode
+  /// instead of crashing the app.
   Future<void> init() async {
     if (_isInitialized) return;
 
+    // Check if Picovoice access key is provided
+    if (!Secrets.hasPicovoiceKey) {
+      _disabledReason = 'Picovoice Access Key не указан. '
+          'Используйте --dart-define=PICOVOICE_ACCESS_KEY=... при сборке.';
+      _isDisabled = true;
+      _isInitialized = true;
+      notifyListeners();
+      _log.w('[Wakeword] Disabled: No PICOVOICE_ACCESS_KEY provided. '
+          'Wake word detection will not be available.');
+      return;
+    }
+
     try {
-      // NOTE: Picovoice requires an AccessKey from console.picovoice.ai
-      const accessKey = Secrets.picovoiceAccessKey; 
+      final accessKey = Secrets.picovoiceAccessKey;
 
       // Use platform-specific .ppn file paths
-      final String keywordPath = Platform.isAndroid 
-          ? "assets/models/wayfinder_android.ppn" 
+      final String keywordPath = Platform.isAndroid
+          ? "assets/models/wayfinder_android.ppn"
           : "assets/models/wayfinder_ios.ppn";
 
       _porcupineManager = await PorcupineManager.fromKeywordPaths(
@@ -43,13 +61,21 @@ class WakewordService extends ChangeNotifier {
       );
 
       _isInitialized = true;
+      _isDisabled = false;
       notifyListeners();
       _log.i("Porcupine Wakeword initialized successfully with $keywordPath");
-
     } on PorcupineException catch (e) {
-      _log.e("Failed to initialize Porcupine: \${e.message}");
+      _log.e("Failed to initialize Porcupine: ${e.message}");
+      _disabledReason = 'Ошибка инициализации wake word: ${e.message}';
+      _isDisabled = true;
+      _isInitialized = true;
+      notifyListeners();
     } catch (e) {
       _log.e("Unexpected error initializing Porcupine: $e");
+      _disabledReason = 'Не удалось запустить wake word. Используйте кнопку.';
+      _isDisabled = true;
+      _isInitialized = true;
+      notifyListeners();
     }
   }
 
@@ -64,7 +90,7 @@ class WakewordService extends ChangeNotifier {
   }
 
   Future<void> startListening() async {
-    if (!_isInitialized || _porcupineManager == null || _isListening) return;
+    if (_isDisabled || !_isInitialized || _porcupineManager == null || _isListening) return;
 
     try {
       await _porcupineManager!.start();
@@ -72,7 +98,7 @@ class WakewordService extends ChangeNotifier {
       notifyListeners();
       _log.d("Started listening for wakeword.");
     } on PorcupineException catch (e) {
-      _log.e("Failed to start listening: \${e.message}");
+      _log.e("Failed to start listening: ${e.message}");
     }
   }
 
@@ -85,7 +111,7 @@ class WakewordService extends ChangeNotifier {
       notifyListeners();
       _log.d("Stopped listening for wakeword.");
     } on PorcupineException catch (e) {
-      _log.e("Failed to stop listening: \${e.message}");
+      _log.e("Failed to stop listening: ${e.message}");
     }
   }
 

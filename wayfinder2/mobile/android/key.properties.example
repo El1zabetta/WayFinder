@@ -1,0 +1,13 @@
+# WayFinder Android Release Signing Configuration
+# DO NOT COMMIT THE REAL key.properties TO GIT.
+# 
+# Instructions:
+# 1. Generate an upload keystore:
+#    keytool -genkey -v -keystore ~/upload-keystore.jks -keyalg RSA -keysize 2048 -validity 10000 -alias upload
+# 2. Copy this file to android/key.properties
+# 3. Fill in the values below pointing to your keystore.
+
+storePassword=your_store_password
+keyPassword=your_key_password
+keyAlias=upload
+storeFile=/home/user/upload-keystore.jks
