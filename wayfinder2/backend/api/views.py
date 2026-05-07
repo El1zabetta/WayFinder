@@ -536,8 +536,6 @@ def health(request: Request) -> Response:
         "engine_mode": "gpu" if (scene_engine.is_ready and not scene_engine.is_mock) else "mock",
         "gpu_available": gpu_available,
         "gpu_name": gpu_name,
-        "model_path": settings.RYNNBRAIN_MODEL_PATH,
-        "memory_entries": len(scene_memory.get_recent(100)),
         "endpoints": [
             "POST /api/v2/analyze/video/",
             "POST /api/v2/analyze/image/",

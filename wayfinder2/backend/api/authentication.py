@@ -62,7 +62,7 @@ def _initialize_firebase():
 
     # Option 2: File path via GOOGLE_APPLICATION_CREDENTIALS or local file
     if cred is None:
-        default_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "wayfinder-483708-firebase-adminsdk-fbsvc-e94ec7bd43.json")
+        default_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "firebase-service-account.json")
         cred_path = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS", default_path)
         if cred_path and os.path.isfile(cred_path):
             try:
